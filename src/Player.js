@@ -99,15 +99,31 @@ export default function Player() {
     }
   };
 
-  const handleVideoEnded = () => {
-    const episodes = dramaData.episodes;
-    if (!currentEpisode || !episodes || episodes.length === 0) return;
-    const currentIndex = episodes.findIndex(ep => ep.episodeNumber === currentEpisode.episodeNumber);
-    if (currentIndex > -1 && currentIndex < episodes.length - 1) {
-      const nextEpisode = episodes[currentIndex + 1];
-      setCurrentEpisode(nextEpisode);
+  const handleDownloadEpisode = (episode) => {
+  if (!episode.url) {
+    alert("URL download tidak tersedia untuk episode ini.");
+    return;
+  }
+
+  // Buat link download
+  const link = document.createElement('a');
+  link.href = episode.url;
+  link.target = '_blank'; // Buka tab baru (bypass CORS & browser block)
+  link.download = `${dramaData.info.title} - ${episode.title}.mp4`;
+  link.rel = 'noopener noreferrer';
+
+  // Trigger click
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  // Tutup tab baru setelah 1 detik (opsional)
+  setTimeout(() => {
+    if (window.open('', '_blank')) {
+      window.close();
     }
-  };
+  }, 1000);
+};
 
   useEffect(() => {
     const initializePlayer = async () => {
