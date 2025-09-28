@@ -66,7 +66,7 @@ export default function Player() {
     setTooltip({ show: false, content: '', x: 0, y: 0 });
   };
 
-  // ✅ FIX: Unduh langsung tanpa putar
+  // ✅ FIX: Unduh langsung dengan link original
   const handleDownloadEpisode = async (episode) => {
     if (!episode.url) {
       alert("URL download tidak tersedia untuk episode ini.");
@@ -74,16 +74,16 @@ export default function Player() {
     }
 
     try {
-      // 1. Fetch sebagai blob (agar browser tidak parsing sebagai video)
+      // Fetch sebagai blob (agar browser tidak parsing sebagai video)
       const response = await fetch(episode.url);
       if (!response.ok) throw new Error("Gagal mengunduh video.");
 
       const blob = await response.blob();
 
-      // 2. Buat object URL dari blob
+      // Buat object URL dari blob
       const url = window.URL.createObjectURL(blob);
 
-      // 3. Buat link download
+      // Buat link download
       const link = document.createElement('a');
       link.href = url;
       link.download = `${dramaData.info.title} - ${episode.title}.mp4`;
@@ -91,7 +91,7 @@ export default function Player() {
       link.click();
       document.body.removeChild(link);
 
-      // 4. Bersihkan memory
+      // Bersihkan memory
       window.URL.revokeObjectURL(url);
     } catch (err) {
       console.error("Gagal mengunduh:", err);
@@ -205,7 +205,7 @@ export default function Player() {
           </Link>
         </div>
 
-        {/* Video Player */}
+        {/* Video Player dengan Link Original */}
         <div className="bg-black mb-4 rounded-lg overflow-hidden flex justify-center">
           {currentEpisode.url ? (
             <video
@@ -217,6 +217,7 @@ export default function Player() {
               onEnded={handleVideoEnded}
               onError={() => setError("Gagal memuat video. Silakan coba episode lain.")}
             >
+              {/* Link Original dari currentEpisode.url */}
               <source src={currentEpisode.url} type="video/mp4" />
               Browser Anda tidak mendukung tag video.
             </video>
