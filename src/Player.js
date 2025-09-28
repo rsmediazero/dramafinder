@@ -66,40 +66,37 @@ export default function Player() {
     setTooltip({ show: false, content: '', x: 0, y: 0 });
   };
 
-  const handleDownloadEpisode = (episode) => {
-  if (!episode.url) {
-    alert("URL download tidak tersedia untuk episode ini.");
-    return;
-  }
+  // ✅ FIX: Unduh langsung tanpa putar
+  const handleDownloadEpisode = async (episode) => {
+    if (!episode.url) {
+      alert("URL download tidak tersedia untuk episode ini.");
+      return;
+    }
 
-  // Buka tab baru ke URL asli (bypass pemutaran)
-  const newTab = window.open(episode.url, '_blank');
+    try {
+      // 1. Fetch sebagai blob (agar browser tidak parsing sebagai video)
+      const response = await fetch(episode.url);
+      if (!response.ok) throw new Error("Gagal mengunduh video.");
 
-  // Fokus kembali ke tab utama
-  if (newTab) {
-    newTab.blur();
-    window.focus();
-  }
-};
+      const blob = await response.blob();
 
-    // Buat link download
-    const link = document.createElement('a');
-    link.href = episode.url;
-    link.target = '_blank'; // Buka tab baru (bypass CORS & browser block)
-    link.download = `${dramaData.info.title} - ${episode.title}.mp4`;
-    link.rel = 'noopener noreferrer';
+      // 2. Buat object URL dari blob
+      const url = window.URL.createObjectURL(blob);
 
-    // Trigger click
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      // 3. Buat link download
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${dramaData.info.title} - ${episode.title}.mp4`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
 
-    // Tutup tab baru setelah 1 detik (opsional)
-    setTimeout(() => {
-      if (window.open('', '_blank')) {
-        window.close();
-      }
-    }, 1000);
+      // 4. Bersihkan memory
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Gagal mengunduh:", err);
+      alert("Gagal mengunduh video. Silakan coba lagi.");
+    }
   };
 
   const handleEpisodeChange = (episode) => {
