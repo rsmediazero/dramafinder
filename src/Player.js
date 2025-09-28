@@ -66,29 +66,30 @@ export default function Player() {
     setTooltip({ show: false, content: '', x: 0, y: 0 });
   };
 
-  const handleDownloadEpisode = async (episode) => {
+  const handleDownloadEpisode = (episode) => {
     if (!episode.url) {
       alert("URL download tidak tersedia untuk episode ini.");
       return;
     }
 
-    try {
-      const response = await fetch(episode.url);
-      if (!response.ok) throw new Error("Gagal mengunduh video.");
+    // Buat link download
+    const link = document.createElement('a');
+    link.href = episode.url;
+    link.target = '_blank'; // Buka tab baru (bypass CORS & browser block)
+    link.download = `${dramaData.info.title} - ${episode.title}.mp4`;
+    link.rel = 'noopener noreferrer';
 
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${dramaData.info.title} - ${episode.title}.mp4`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error("Gagal mengunduh:", err);
-      alert("Gagal mengunduh video. Silakan coba lagi.");
-    }
+    // Trigger click
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    // Tutup tab baru setelah 1 detik (opsional)
+    setTimeout(() => {
+      if (window.open('', '_blank')) {
+        window.close();
+      }
+    }, 1000);
   };
 
   const handleEpisodeChange = (episode) => {
@@ -99,31 +100,15 @@ export default function Player() {
     }
   };
 
-  const handleDownloadEpisode = (episode) => {
-  if (!episode.url) {
-    alert("URL download tidak tersedia untuk episode ini.");
-    return;
-  }
-
-  // Buat link download
-  const link = document.createElement('a');
-  link.href = episode.url;
-  link.target = '_blank'; // Buka tab baru (bypass CORS & browser block)
-  link.download = `${dramaData.info.title} - ${episode.title}.mp4`;
-  link.rel = 'noopener noreferrer';
-
-  // Trigger click
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-
-  // Tutup tab baru setelah 1 detik (opsional)
-  setTimeout(() => {
-    if (window.open('', '_blank')) {
-      window.close();
+  const handleVideoEnded = () => {
+    const episodes = dramaData.episodes;
+    if (!currentEpisode || !episodes || episodes.length === 0) return;
+    const currentIndex = episodes.findIndex(ep => ep.episodeNumber === currentEpisode.episodeNumber);
+    if (currentIndex > -1 && currentIndex < episodes.length - 1) {
+      const nextEpisode = episodes[currentIndex + 1];
+      setCurrentEpisode(nextEpisode);
     }
-  }, 1000);
-};
+  };
 
   useEffect(() => {
     const initializePlayer = async () => {
