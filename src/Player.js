@@ -66,19 +66,29 @@ export default function Player() {
     setTooltip({ show: false, content: '', x: 0, y: 0 });
   };
 
-  const handleDownloadEpisode = (episode) => {
+  const handleDownloadEpisode = async (episode) => {
     if (!episode.url) {
       alert("URL download tidak tersedia untuk episode ini.");
       return;
     }
 
-    const link = document.createElement('a');
-    link.href = episode.url;
-    link.download = `${dramaData.info.title} - ${episode.title}.mp4`;
-    link.target = '_blank';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    try {
+      const response = await fetch(episode.url);
+      if (!response.ok) throw new Error("Gagal mengunduh video.");
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${dramaData.info.title} - ${episode.title}.mp4`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Gagal mengunduh:", err);
+      alert("Gagal mengunduh video. Silakan coba lagi.");
+    }
   };
 
   const handleEpisodeChange = (episode) => {
