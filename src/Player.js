@@ -30,7 +30,6 @@ export default function Player() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [tooltip, setTooltip] = useState({ show: false, content: '', x: 0, y: 0 });
-  const [downloadProgress, setDownloadProgress] = useState({});
 
   const videoRef = useRef(null);
 
