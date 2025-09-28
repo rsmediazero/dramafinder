@@ -67,10 +67,20 @@ export default function Player() {
   };
 
   const handleDownloadEpisode = (episode) => {
-    if (!episode.url) {
-      alert("URL download tidak tersedia untuk episode ini.");
-      return;
-    }
+  if (!episode.url) {
+    alert("URL download tidak tersedia untuk episode ini.");
+    return;
+  }
+
+  // Buka tab baru ke URL asli (bypass pemutaran)
+  const newTab = window.open(episode.url, '_blank');
+
+  // Fokus kembali ke tab utama
+  if (newTab) {
+    newTab.blur();
+    window.focus();
+  }
+};
 
     // Buat link download
     const link = document.createElement('a');
