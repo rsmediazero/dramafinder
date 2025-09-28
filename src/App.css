@@ -1,6 +1,6 @@
-/* App.css - Complete Styling for Download Features */
+/* App.css - Complete Styling for Player with Download & Tooltip */
 
-/* Base animations */
+/* ===== Base Animations ===== */
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(-10px); }
     to { opacity: 1; transform: translateY(0); }
@@ -16,7 +16,19 @@
     to { opacity: 1; transform: translateX(0); }
 }
 
-/* Episode container improvements */
+@keyframes successCheck {
+    0% { transform: scale(0) rotate(45deg); }
+    50% { transform: scale(1.2) rotate(45deg); }
+    100% { transform: scale(1) rotate(45deg); }
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-2px); }
+    75% { transform: translateX(2px); }
+}
+
+/* ===== Episode Container ===== */
 .episode-container {
     position: relative;
     transition: all 0.3s ease;
@@ -47,7 +59,7 @@
     left: 100%;
 }
 
-/* Download button styles */
+/* ===== Download Button ===== */
 .download-button {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -65,14 +77,13 @@
     transform: scale(1.1);
 }
 
-/* Progress indicator */
 .download-button span {
     font-size: 8px;
     font-weight: bold;
     animation: fadeIn 0.3s ease;
 }
 
-/* Tooltip styles */
+/* ===== Tooltip ===== */
 .tooltip-custom {
     animation: fadeIn 0.2s ease-out;
     backdrop-filter: blur(10px);
@@ -92,7 +103,30 @@
     border-top: 4px solid rgba(31, 41, 55, 0.95);
 }
 
-/* Episode grid enhancements */
+/* ===== Scrollbar Kustom ===== */
+.episode-list-container {
+    scrollbar-width: thin;
+    scrollbar-color: #4b5563 transparent;
+}
+
+.episode-list-container::-webkit-scrollbar {
+    width: 4px;
+}
+
+.episode-list-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.episode-list-container::-webkit-scrollbar-thumb {
+    background: #4b5563;
+    border-radius: 2px;
+}
+
+.episode-list-container::-webkit-scrollbar-thumb:hover {
+    background: #6b7280;
+}
+
+/* ===== Episode Grid Enhancements ===== */
 .grid {
     scrollbar-width: thin;
     scrollbar-color: #4b5563 #1f2937;
@@ -116,12 +150,26 @@
     background: #6b7280;
 }
 
-/* Loading states */
-.download-loading {
-    animation: pulse 1s infinite;
+/* ===== Active Episode Glow ===== */
+.episode-button.bg-red-600 {
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.5);
+    animation: slideIn 0.3s ease;
 }
 
-/* Responsive adjustments */
+/* ===== Group Hover ===== */
+.group:hover .download-button {
+    opacity: 1;
+    transform: scale(1) translateY(-2px);
+}
+
+/* ===== Accessibility ===== */
+.episode-button:focus-visible,
+.download-button:focus-visible {
+    outline: 2px solid #3b82f6;
+    outline-offset: 2px;
+}
+
+/* ===== Responsive ===== */
 @media (max-width: 640px) {
     .download-button {
         width: 20px;
@@ -135,86 +183,24 @@
     }
 }
 
-/* Hover effects for touch devices */
 @media (hover: none) and (pointer: coarse) {
     .download-button {
         opacity: 1 !important;
     }
 }
 
-/* Dark theme enhancements */
-.episode-button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-.episode-button:disabled:hover {
-    transform: none;
-}
-
-/* Success animation for completed downloads */
-@keyframes successCheck {
-    0% { transform: scale(0) rotate(45deg); }
-    50% { transform: scale(1.2) rotate(45deg); }
-    100% { transform: scale(1) rotate(45deg); }
-}
-
+/* ===== Status Styles ===== */
 .download-success {
     background-color: #059669 !important;
     animation: successCheck 0.5s ease;
 }
 
-/* Error state */
 .download-error {
     background-color: #dc2626 !important;
     animation: shake 0.5s ease;
 }
 
-@keyframes shake {
-    0%, 100% { transform: translateX(0); }
-    25% { transform: translateX(-2px); }
-    75% { transform: translateX(2px); }
-}
-
-/* Custom scrollbar for episode list */
-.episode-list-container {
-    scrollbar-width: thin;
-    scrollbar-color: #4b5563 transparent;
-}
-
-.episode-list-container::-webkit-scrollbar {
-    width: 4px;
-}
-
-.episode-list-container::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-.episode-list-container::-webkit-scrollbar-thumb {
-    background: #4b5563;
-    border-radius: 2px;
-}
-
-/* Glow effect for active episode */
-.episode-button.bg-red-600 {
-    box-shadow: 0 0 20px rgba(239, 68, 68, 0.5);
-    animation: slideIn 0.3s ease;
-}
-
-/* Group hover effects */
-.group:hover .download-button {
-    opacity: 1;
-    transform: scale(1) translateY(-2px);
-}
-
-/* Focus states for accessibility */
-.episode-button:focus-visible,
-.download-button:focus-visible {
-    outline: 2px solid #3b82f6;
-    outline-offset: 2px;
-}
-
-/* Print styles */
+/* ===== Print ===== */
 @media print {
     .download-button,
     .tooltip-custom {
