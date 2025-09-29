@@ -2,10 +2,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-
-// Import komponen analytics dan security
-import { AnalyticsTracker } from "@/lib/analyticsTracker";
-import { Suspense } from "react";
 import { DisableDevTools } from "@/lib/disableDevTools";
 
 // --- Komponen Individual ---
@@ -92,25 +88,8 @@ export default function App() {
             const newDramas = result.data.newTheaterList.records.map(formatDramaData);
             setDramas(prevDramas => pageNum === 1 ? newDramas : [...prevDramas, ...newDramas]);
 
-            // Track analytics untuk page load
-            if (typeof window !== 'undefined' && window.gtag) {
-                window.gtag('event', 'page_view', {
-                    page_title: 'DramaBoxFinder Home',
-                    page_location: window.location.href,
-                    drama_count: newDramas.length
-                });
-            }
-
         } catch (err) {
             setError(err.message);
-            
-            // Track error analytics
-            if (typeof window !== 'undefined' && window.gtag) {
-                window.gtag('event', 'error', {
-                    error_message: err.message,
-                    error_type: 'fetch_error'
-                });
-            }
         } finally {
             setIsLoading(false);
             setIsMoreLoading(false);
@@ -135,41 +114,15 @@ export default function App() {
             
             const formattedResults = result.data.suggestList.map(formatDramaData);
             setDramas(formattedResults);
-            
-            // Track search analytics
-            if (typeof window !== 'undefined' && window.gtag) {
-                window.gtag('event', 'search', {
-                    search_term: keyword,
-                    result_count: formattedResults.length
-                });
-            }
         } catch (err) {
             setError(err.message);
-            
-            // Track search error analytics
-            if (typeof window !== 'undefined' && window.gtag) {
-                window.gtag('event', 'search_error', {
-                    search_term: keyword,
-                    error_message: err.message
-                });
-            }
         } finally {
             setIsLoading(false);
         }
     }, []);
     
     // --- EVENT HANDLERS ---
-    const handleLoadMore = () => {
-        setPage(prevPage => prevPage + 1);
-        
-        // Track load more analytics
-        if (typeof window !== 'undefined' && window.gtag) {
-            window.gtag('event', 'load_more', {
-                page_number: page + 1,
-                current_drama_count: dramas.length
-            });
-        }
-    };
+    const handleLoadMore = () => setPage(prevPage => prevPage + 1);
     
     const handleSearchChange = (e) => setSearchTerm(e.target.value);
     
@@ -187,15 +140,6 @@ const handleSelectDrama = useCallback(async (drama) => {
         const result = await response.json();
         if (result.success === false) throw new Error(result.message || "Gagal mendapatkan daftar episode.");
 
-        // Track drama selection analytics
-        if (typeof window !== 'undefined' && window.gtag) {
-            window.gtag('event', 'select_drama', {
-                drama_id: drama.id,
-                drama_title: drama.title,
-                episode_count: result.episodes?.length || 0
-            });
-        }
-
         navigate(`/player/${drama.id}`, {
             state: {
                 dramaInfo: drama,
@@ -205,15 +149,6 @@ const handleSelectDrama = useCallback(async (drama) => {
         });
     } catch (err) {
         setError(err.message); // <-- Atur error jika fetch gagal
-        
-        // Track error analytics
-        if (typeof window !== 'undefined' && window.gtag) {
-            window.gtag('event', 'drama_selection_error', {
-                drama_id: drama.id,
-                drama_title: drama.title,
-                error_message: err.message
-            });
-        }
     } finally {
         setIsNavigating(false); // <-- 3. Selalu matikan loading setelah selesai
     }
@@ -241,11 +176,8 @@ const handleSelectDrama = useCallback(async (drama) => {
     // --- RENDER ---
     return (
         <div className="bg-gray-900 min-h-screen text-white font-sans">
-            {/* Analytics dan Security Components */}
-            <Suspense fallback={null}>
-                <AnalyticsTracker />
-                <DisableDevTools />
-            </Suspense>
+            {/* Security Component */}
+            <DisableDevTools />
             
             {isNavigating && (
             <div className="fixed inset-0 bg-black/70 flex justify-center items-center z-50">
@@ -306,24 +238,6 @@ const handleSelectDrama = useCallback(async (drama) => {
                     </div>
                 )}
             </main>
-            
-            {/* Google Analytics Script */}
-            <script
-                async
-                src={`https://www.googletagmanager.com/gtag/js?id=${process.env.REACT_APP_GA_ID || 'GA_MEASUREMENT_ID'}`}
-            />
-            <script
-                dangerouslySetInnerHTML={{
-                    __html: `
-                        window.dataLayer = window.dataLayer || [];
-                        function gtag(){dataLayer.push(arguments);}
-                        gtag('js', new Date());
-                        gtag('config', '${process.env.REACT_APP_GA_ID || 'GA_MEASUREMENT_ID'}', {
-                            page_path: window.location.pathname,
-                        });
-                    `,
-                }}
-            />
         </div>
     );
 }
