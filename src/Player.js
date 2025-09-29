@@ -184,7 +184,7 @@ export default function Player() {
   }, []);
 
   const handleDownloadEpisode = useCallback(async (episode) => {
-    if (!episode.url) {
+    if (!episode?.url) {
       alert("URL download tidak tersedia untuk episode ini.");
       return;
     }
@@ -192,26 +192,93 @@ export default function Player() {
     setIsDownloading(true);
     
     try {
-      const response = await fetch(episode.url);
-      if (!response.ok) throw new Error("Gagal mengunduh video.");
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
+      console.log('Memulai download dari:', episode.url);
+      
+      // Method 1: Direct download menggunakan anchor tag (lebih cepat)
       const link = document.createElement('a');
-      link.href = url;
-      link.download = `${dramaData.info?.title || 'Drama'} - ${episode.title}.mp4`;
+      link.href = episode.url;
+      
+      // Ekstrak nama file dari URL atau buat custom filename
+      const urlParts = episode.url.split('/');
+      const originalFileName = urlParts[urlParts.length - 1];
+      const fileName = originalFileName.includes('.mp4') 
+        ? originalFileName 
+        : `${dramaData.info?.title || 'Drama'}_${episode.title}.mp4`;
+      
+      link.download = fileName;
       link.style.display = 'none';
       
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       
-      // Cleanup URL object setelah download
-      setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+      console.log('Download berhasil diproses:', fileName);
       
     } catch (err) {
       console.error("Gagal mengunduh:", err);
-      alert("Gagal mengunduh video. Silakan coba lagi.");
+      
+      // Fallback: Buka tab baru jika direct download gagal
+      try {
+        window.open(episode.url, '_blank');
+        alert("Download dimulai di tab baru. Jika tidak otomatis terdownload, klik kanan pada video dan pilih 'Save video as'.");
+      } catch (fallbackErr) {
+        alert("Gagal mengunduh video. Silakan coba lagi atau gunakan browser lain.");
+      }
+    } finally {
+      setIsDownloading(false);
+    }
+  }, [dramaData.info]);
+
+  // Alternative download method menggunakan fetch (jika direct download tidak bekerja)
+  const handleDownloadWithFetch = useCallback(async (episode) => {
+    if (!episode?.url) {
+      alert("URL download tidak tersedia untuk episode ini.");
+      return;
+    }
+
+    setIsDownloading(true);
+    
+    try {
+      console.log('Download dengan fetch dari:', episode.url);
+      
+      const response = await fetch(episode.url);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: Gagal mengunduh video`);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      
+      // Buat nama file yang meaningful
+      const fileName = `${dramaData.info?.title || 'Drama'}_${episode.title}.mp4`;
+      
+      link.href = url;
+      link.download = fileName;
+      link.style.display = 'none';
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Cleanup URL object
+      setTimeout(() => {
+        window.URL.revokeObjectURL(url);
+        console.log('Download completed:', fileName);
+      }, 1000);
+      
+    } catch (err) {
+      console.error("Gagal mengunduh dengan fetch:", err);
+      alert("Gagal mengunduh video. Silakan coba metode download langsung.");
+      
+      // Fallback ke direct download
+      const link = document.createElement('a');
+      link.href = episode.url;
+      link.download = `${dramaData.info?.title || 'Drama'}_${episode.title}.mp4`;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     } finally {
       setIsDownloading(false);
     }
@@ -371,12 +438,34 @@ export default function Player() {
           <h1 className="text-xl md:text-2xl font-bold truncate">
             {dramaData.info.title} - {currentEpisode.title}
           </h1>
-          <Link 
-            to="/" 
-            className="bg-gray-700 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200 text-sm"
-          >
-            ← Kembali ke Daftar
-          </Link>
+          <div className="flex gap-2">
+            {/* Tombol Download Episode Saat Ini */}
+            {currentEpisode.url && (
+              <button
+                onClick={() => handleDownloadEpisode(currentEpisode)}
+                disabled={isDownloading}
+                className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200 text-sm flex items-center gap-2"
+                title={`Download ${currentEpisode.title}`}
+              >
+                {isDownloading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                    Download...
+                  </>
+                ) : (
+                  <>
+                    📥 Download Episode
+                  </>
+                )}
+              </button>
+            )}
+            <Link 
+              to="/" 
+              className="bg-gray-700 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200 text-sm"
+            >
+              ← Kembali
+            </Link>
+          </div>
         </div>
 
         {/* Video Player */}
@@ -402,9 +491,26 @@ export default function Player() {
             </div>
           )}
           
-          <h3 className="text-lg font-bold border-t border-gray-700 pt-4">
-            Daftar Episode ({dramaData.episodes.length}):
-          </h3>
+          <div className="flex justify-between items-center mb-2">
+            <h3 className="text-lg font-bold">
+              Daftar Episode ({dramaData.episodes.length}):
+            </h3>
+            {dramaData.episodes.some(ep => ep.url) && (
+              <button
+                onClick={() => {
+                  if (confirm(`Download semua ${dramaData.episodes.length} episode?`)) {
+                    dramaData.episodes.forEach(ep => {
+                      if (ep.url) handleDownloadEpisode(ep);
+                    });
+                  }
+                }}
+                className="bg-blue-600 hover:bg-blue-700 text-white text-xs py-1 px-3 rounded transition-colors"
+                title="Download semua episode"
+              >
+                📥 Download Semua
+              </button>
+            )}
+          </div>
           
           <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-12 gap-3 mt-2 max-h-48 overflow-y-auto episode-list-container">
             {dramaData.episodes.map(ep => (
@@ -422,7 +528,8 @@ export default function Player() {
 
       {/* Downloading Indicator */}
       {isDownloading && (
-        <div className="fixed bottom-4 right-4 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg">
+        <div className="fixed bottom-4 right-4 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2">
+          <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
           Mengunduh video...
         </div>
       )}
