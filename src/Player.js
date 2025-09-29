@@ -1,7 +1,7 @@
 // src/Player.js
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { DisableDevTools } from "src/disableDevTools.js";
+import { DisableDevTools } from "disableDevTools.js";
 
 // Password configuration - bisa dipindah ke .env file
 const PASSWORD_CONFIG = {
