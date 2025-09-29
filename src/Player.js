@@ -152,10 +152,21 @@ const ErrorMessage = ({ message, onRetry }) => (
 );
 
 // Komponen Password Modal
-const PasswordModal = ({ isOpen, onClose, onSuccess, remainingAttempts }) => {
+const PasswordModal = ({ isOpen, onClose, onSuccess, remainingAttempts, actionType = "akses" }) => {
     const [password, setPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
+
+    const getActionText = () => {
+        switch (actionType) {
+            case "copy":
+                return "menyalin link";
+            case "show":
+                return "menampilkan link";
+            default:
+                return "mengakses fitur";
+        }
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -214,7 +225,7 @@ const PasswordModal = ({ isOpen, onClose, onSuccess, remainingAttempts }) => {
                 
                 <div className="bg-yellow-900 border border-yellow-700 rounded p-3 mb-4">
                     <p className="text-yellow-200 text-sm">
-                        🔒 Fitur ini membutuhkan password. 
+                        🔒 Fitur ini membutuhkan password untuk {getActionText()}. 
                         {remainingAttempts > 0 && (
                             <span className="font-semibold"> Percobaan tersisa: {PASSWORD_CONFIG.MAX_ATTEMPTS - remainingAttempts}</span>
                         )}
@@ -325,6 +336,7 @@ const useSecurity = () => {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [showPasswordModal, setShowPasswordModal] = useState(false);
     const [remainingAttempts, setRemainingAttempts] = useState(PASSWORD_CONFIG.MAX_ATTEMPTS);
+    const [modalAction, setModalAction] = useState("akses");
 
     useEffect(() => {
         // Check jika user sudah diblokir
@@ -337,9 +349,10 @@ const useSecurity = () => {
         setRemainingAttempts(attemptData.attempts);
     }, []);
 
-    const requireAuth = () => {
+    const requireAuth = (actionType = "akses") => {
         if (isAuthenticated) return true;
         
+        setModalAction(actionType);
         setShowPasswordModal(true);
         return false;
     };
@@ -357,6 +370,7 @@ const useSecurity = () => {
         isAuthenticated,
         showPasswordModal,
         remainingAttempts,
+        modalAction,
         requireAuth,
         handleAuthSuccess,
         handleCloseModal
@@ -371,6 +385,7 @@ const CopyLinksBox = ({ episodes }) => {
         isAuthenticated,
         showPasswordModal,
         remainingAttempts,
+        modalAction,
         requireAuth,
         handleAuthSuccess,
         handleCloseModal
@@ -386,7 +401,7 @@ const CopyLinksBox = ({ episodes }) => {
 
     const handleCopyAllLinks = async () => {
         // Check authentication first
-        if (!requireAuth()) return;
+        if (!requireAuth("copy")) return;
 
         try {
             await navigator.clipboard.writeText(formattedLinks);
@@ -406,6 +421,12 @@ const CopyLinksBox = ({ episodes }) => {
             setIsCopied(true);
             setTimeout(() => setIsCopied(false), 3000);
         }
+    };
+
+    const handleToggleLinks = () => {
+        // Check authentication untuk menampilkan link
+        if (!requireAuth("show")) return;
+        setShowLinks(!showLinks);
     };
 
     if (validEpisodes.length === 0) {
@@ -445,17 +466,24 @@ const CopyLinksBox = ({ episodes }) => {
                     </button>
                 </div>
 
-                {/* Toggle untuk show/hide links */}
+                {/* Toggle untuk show/hide links - SEKARANG DIKUNCI JUGA */}
                 <button
-                    onClick={() => setShowLinks(!showLinks)}
-                    className="flex items-center gap-2 text-gray-300 hover:text-white text-sm mb-2 transition-colors"
+                    onClick={handleToggleLinks}
+                    disabled={!isAuthenticated}
+                    className={`flex items-center gap-2 text-sm mb-2 transition-colors ${
+                        isAuthenticated 
+                            ? 'text-gray-300 hover:text-white' 
+                            : 'text-gray-500 cursor-not-allowed'
+                    }`}
+                    title={!isAuthenticated ? "Klik untuk membuka dengan password" : ""}
                 >
                     <span>{showLinks ? '▼' : '▶'}</span>
                     {showLinks ? 'Sembunyikan Link' : 'Tampilkan Link'}
+                    {!isAuthenticated && <span className="ml-1">🔒</span>}
                 </button>
 
                 {/* Box untuk menampilkan links */}
-                {showLinks && (
+                {showLinks && isAuthenticated && (
                     <div className="bg-gray-900 rounded-lg p-3 max-h-48 overflow-y-auto">
                         <pre className="text-xs text-gray-300 whitespace-pre-wrap">
                             {formattedLinks}
@@ -468,7 +496,7 @@ const CopyLinksBox = ({ episodes }) => {
                     {validEpisodes.length} dari {episodes.length} episode memiliki link yang valid
                     {!isAuthenticated && (
                         <span className="text-yellow-400 block mt-1">
-                            🔒 Masukkan password untuk menyalin link
+                            🔒 Masukkan password untuk menyalin atau menampilkan link
                         </span>
                     )}
                 </p>
@@ -480,6 +508,7 @@ const CopyLinksBox = ({ episodes }) => {
                 onClose={handleCloseModal}
                 onSuccess={handleAuthSuccess}
                 remainingAttempts={remainingAttempts}
+                actionType={modalAction}
             />
         </>
     );
