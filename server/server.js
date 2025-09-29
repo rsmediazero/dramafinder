@@ -1,62 +1,59 @@
-// Di server/server.js
-const TelegramVIPBot = require('./bot/telegramBot');
+// server/server.js
+const express = require('express');
+const cors = require('cors');
+const path = require('path');
 
-// Inisialisasi bot dengan error handling
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+// ========== TELEGRAM BOT INTEGRATION ==========
 let vipBot = null;
+try {
+    const TelegramVIPBot = require('./bot/telegramBot'); // Path RELATIF
+    vipBot = new TelegramVIPBot();
+    console.log('✅ Telegram Bot initialized successfully');
+} catch (error) {
+    console.error('❌ Telegram Bot failed:', error.message);
+}
+// ==============================================
 
-const initializeBot = () => {
-    try {
-        console.log('🔧 Starting Telegram Bot...');
-        vipBot = new TelegramVIPBot();
-        console.log('✅ Telegram Bot started successfully');
-    } catch (error) {
-        console.error('❌ Failed to start Telegram Bot:', error.message);
-        console.log('⚠️ VIP features will be disabled');
-    }
-};
+// API Routes yang sudah ada
+app.post('/api/latest', (req, res) => {
+    // ... code existing Anda
+});
 
-// Start bot setelah server ready
-setTimeout(() => {
-    initializeBot();
-}, 2000);
+app.post('/api/search', (req, res) => {
+    // ... code existing Anda  
+});
 
-// API endpoints dengan bot availability check
+app.post('/api/stream-link', (req, res) => {
+    // ... code existing Anda
+});
+
+// ========== VIP API ROUTES BARU ==========
 app.post('/api/validate-vip', (req, res) => {
-    const { code } = req.body;
-    
-    if (!code) {
-        return res.json({ valid: false, message: 'Kode tidak boleh kosong' });
-    }
-
     if (!vipBot) {
-        return res.json({ valid: false, message: 'Sistem VIP sedang maintenance. Silakan coba lagi nanti.' });
+        return res.json({ valid: false, message: 'Sistem VIP sedang maintenance' });
     }
-
-    try {
-        const result = vipBot.validateVIPCode(code);
-        res.json(result);
-    } catch (error) {
-        console.error('VIP Validation Error:', error);
-        res.json({ valid: false, message: 'Error validasi kode' });
-    }
+    
+    const { code } = req.body;
+    const result = vipBot.validateVIPCode(code);
+    res.json(result);
 });
 
 app.post('/api/activate-vip', (req, res) => {
-    const { code, userInfo } = req.body;
-    
-    if (!code) {
-        return res.json({ success: false, message: 'Kode tidak boleh kosong' });
-    }
-
     if (!vipBot) {
-        return res.json({ success: false, message: 'Sistem VIP sedang maintenance. Silakan coba lagi nanti.' });
+        return res.json({ success: false, message: 'Sistem VIP sedang maintenance' });
     }
+    
+    const { code } = req.body;
+    const result = vipBot.activateVIPCode(code, 'Web User');
+    res.json(result);
+});
+// =========================================
 
-    try {
-        const result = vipBot.activateVIPCode(code, userInfo || 'Web User');
-        res.json(result);
-    } catch (error) {
-        console.error('VIP Activation Error:', error);
-        res.json({ success: false, message: 'Error aktivasi kode' });
-    }
+const PORT = process.env.PORT || 3001;
+app.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
 });
