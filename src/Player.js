@@ -797,7 +797,13 @@ const EpisodeButton = ({ episode, isCurrent, onClick, episodeNumber, totalEpisod
             requireVIPAccess();
             return;
         }
-        onClick(episode);
+        
+        // Pastikan episode memiliki URL yang valid
+        if (episode.url) {
+            onClick(episode);
+        } else {
+            alert("Episode ini tidak memiliki URL yang valid");
+        }
     };
 
     return (
@@ -809,7 +815,7 @@ const EpisodeButton = ({ episode, isCurrent, onClick, episodeNumber, totalEpisod
                 ${isCurrent 
                     ? 'bg-red-600 text-white shadow-lg transform scale-105' 
                     : isLocked
-                        ? 'bg-gray-900 text-gray-500 cursor-not-allowed opacity-50'
+                        ? 'bg-gray-900 text-gray-500 cursor-not-allowed opacity-70'
                         : episode.url 
                             ? 'bg-gray-700 hover:bg-gray-600 hover:shadow-md text-white' 
                             : 'bg-gray-900 text-gray-500 cursor-not-allowed opacity-50'
@@ -819,7 +825,7 @@ const EpisodeButton = ({ episode, isCurrent, onClick, episodeNumber, totalEpisod
         >
             {episode.title.replace('EP ', '')}
             {isVIPOnly && (
-                <span className="absolute -top-1 -right-1">
+                <span className="absolute -top-1 -right-1 text-xs">
                     {isLocked ? '🔒' : '⭐'}
                 </span>
             )}
@@ -1021,7 +1027,9 @@ export default function Player() {
     }, [navigate, location.pathname, location.state]);
 
     const handleEpisodeChange = useCallback((episode) => {
-        if (episode.url) {
+        if (episode && episode.url) {
+            console.log(`[LOG] Mengganti episode ke: ${episode.title}`, episode);
+            setState(prev => ({ ...prev, currentEpisode: episode }));
             window.scrollTo({ top: 0, behavior: 'smooth' });
         } else {
             alert("Episode ini tidak memiliki URL yang valid");
@@ -1042,14 +1050,37 @@ export default function Player() {
         }
     }, [currentEpisode, episodes, handleEpisodeChange]);
 
+    // State management untuk current episode
+    const [state, setState] = useState({
+        dramaInfo: null,
+        episodes: [],
+        currentEpisode: null,
+        isLoading: true,
+        error: null
+    });
+
+    // Effect untuk mengupdate state ketika data berubah
     useEffect(() => {
-        if (videoRef.current && currentEpisode?.url) {
+        if (dramaInfo && episodes.length > 0 && currentEpisode) {
+            setState({
+                dramaInfo,
+                episodes,
+                currentEpisode,
+                isLoading: false,
+                error: null
+            });
+        }
+    }, [dramaInfo, episodes, currentEpisode]);
+
+    useEffect(() => {
+        if (videoRef.current && state.currentEpisode?.url) {
+            console.log(`[LOG] Memuat video: ${state.currentEpisode.title}`);
             videoRef.current.load();
             videoRef.current.play().catch(e => {
                 console.log("Autoplay prevented:", e);
             });
         }
-    }, [currentEpisode]);
+    }, [state.currentEpisode]);
 
     // Return BlockedScreen di awal, sebelum menggunakan data hooks
     if (isBlocked) {
@@ -1057,7 +1088,7 @@ export default function Player() {
     }
 
     // Kemudian return states lainnya
-    if (isLoading) {
+    if (state.isLoading) {
         return (
             <div className="bg-gray-900 min-h-screen text-white">
                 <div className="container mx-auto px-4 py-8">
@@ -1068,18 +1099,18 @@ export default function Player() {
         );
     }
 
-    if (error) {
+    if (state.error) {
         return (
             <div className="bg-gray-900 min-h-screen text-white">
                 <div className="container mx-auto px-4 py-8">
                     <Header onBack={() => navigate('/')} title="Error" isError />
-                    <ErrorMessage message={error} onRetry={handleRetry} />
+                    <ErrorMessage message={state.error} onRetry={handleRetry} />
                 </div>
             </div>
         );
     }
 
-    if (!dramaInfo || !currentEpisode || episodes.length === 0) {
+    if (!state.dramaInfo || !state.currentEpisode || state.episodes.length === 0) {
         return (
             <div className="bg-gray-900 min-h-screen text-white">
                 <div className="container mx-auto px-4 py-8">
@@ -1094,18 +1125,18 @@ export default function Player() {
     }
 
     const hasVIPAccess = securityService.hasVIPAccess();
-    const lockedEpisodesCount = episodes.filter((_, index) => index + 1 > 5).length;
+    const lockedEpisodesCount = state.episodes.filter((_, index) => index + 1 > 5).length;
 
     return (
         <div className="bg-gray-900 min-h-screen text-white p-4 md:p-8">
             <div className="max-w-4xl mx-auto">
                 <Header 
                     onBack={() => navigate('/')} 
-                    title={`${dramaInfo.title} - ${currentEpisode.title}`}
+                    title={`${state.dramaInfo.title} - ${state.currentEpisode.title}`}
                 />
 
                 <VideoPlayer 
-                    currentEpisode={currentEpisode}
+                    currentEpisode={state.currentEpisode}
                     videoRef={videoRef}
                     onEnded={handleVideoEnded}
                     onError={() => {
@@ -1115,12 +1146,12 @@ export default function Player() {
 
                 <div className="bg-gray-800 p-6 rounded-lg">
                     <p className="text-gray-300 mb-4 leading-relaxed">
-                        {dramaInfo.description || "Tidak ada deskripsi tersedia."}
+                        {state.dramaInfo.description || "Tidak ada deskripsi tersedia."}
                     </p>
                     
-                    {dramaInfo.category && (
+                    {state.dramaInfo.category && (
                         <div className="flex flex-wrap gap-2 mb-4">
-                            {dramaInfo.category.split(', ').map((tag, index) => (
+                            {state.dramaInfo.category.split(', ').map((tag, index) => (
                                 <span key={index} className="bg-gray-700 text-xs px-3 py-1 rounded-full">
                                     {tag.trim()}
                                 </span>
@@ -1129,7 +1160,7 @@ export default function Player() {
                     )}
                     
                     <div className="border-t border-gray-700 pt-4">
-                        <CopyLinksBox episodes={episodes} />
+                        <CopyLinksBox episodes={state.episodes} />
                         
                         {/* VIP Info Banner */}
                         {!hasVIPAccess && lockedEpisodesCount > 0 && (
@@ -1164,23 +1195,23 @@ export default function Player() {
                         )}
                         
                         <h3 className="text-lg font-bold mb-4">
-                            Daftar Episode ({episodes.length})
+                            Daftar Episode ({state.episodes.length})
                             {!hasVIPAccess && lockedEpisodesCount > 0 && (
                                 <span className="text-purple-400 text-sm ml-2">
-                                    ({episodes.length - lockedEpisodesCount} gratis, {lockedEpisodesCount} VIP)
+                                    ({state.episodes.length - lockedEpisodesCount} gratis, {lockedEpisodesCount} VIP)
                                 </span>
                             )}
                         </h3>
                         
                         <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2 max-h-64 overflow-y-auto pr-2">
-                            {episodes.map((ep, index) => (
+                            {state.episodes.map((ep, index) => (
                                 <EpisodeButton
                                     key={ep.episodeNumber}
                                     episode={ep}
-                                    isCurrent={currentEpisode.episodeNumber === ep.episodeNumber}
+                                    isCurrent={state.currentEpisode.episodeNumber === ep.episodeNumber}
                                     onClick={handleEpisodeChange}
                                     episodeNumber={index + 1}
-                                    totalEpisodes={episodes.length}
+                                    totalEpisodes={state.episodes.length}
                                 />
                             ))}
                         </div>
