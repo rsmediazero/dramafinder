@@ -1016,8 +1016,7 @@ export default function Player() {
     const isBlocked = securityService.isUserBlocked();
     
     // Pindahkan semua hooks ke atas, sebelum conditional return
-    const { dramaInfo, episodes, currentEpisode, isLoading, error } = 
-        useDramaData(bookId, location.state);
+    const dramaData = useDramaData(bookId, location.state);
 
     const handleRetry = useCallback(() => {
         navigate(location.pathname, { 
@@ -1025,6 +1024,15 @@ export default function Player() {
             state: { ...location.state, forceRefresh: Date.now() }
         });
     }, [navigate, location.pathname, location.state]);
+
+    // State management untuk current episode
+    const [state, setState] = useState({
+        dramaInfo: null,
+        episodes: [],
+        currentEpisode: null,
+        isLoading: true,
+        error: null
+    });
 
     const handleEpisodeChange = useCallback((episode) => {
         if (episode && episode.url) {
@@ -1037,40 +1045,31 @@ export default function Player() {
     }, []);
 
     const handleVideoEnded = useCallback(() => {
-        if (!currentEpisode || !episodes || episodes.length === 0) return;
+        if (!state.currentEpisode || !state.episodes || state.episodes.length === 0) return;
 
-        const currentIndex = episodes.findIndex(
-            ep => ep.episodeNumber === currentEpisode.episodeNumber
+        const currentIndex = state.episodes.findIndex(
+            ep => ep.episodeNumber === state.currentEpisode.episodeNumber
         );
 
-        if (currentIndex > -1 && currentIndex < episodes.length - 1) {
-            const nextEpisode = episodes[currentIndex + 1];
+        if (currentIndex > -1 && currentIndex < state.episodes.length - 1) {
+            const nextEpisode = state.episodes[currentIndex + 1];
             console.log(`[LOG] Auto-play episode: ${nextEpisode.title}`);
             handleEpisodeChange(nextEpisode);
         }
-    }, [currentEpisode, episodes, handleEpisodeChange]);
-
-    // State management untuk current episode
-    const [state, setState] = useState({
-        dramaInfo: null,
-        episodes: [],
-        currentEpisode: null,
-        isLoading: true,
-        error: null
-    });
+    }, [state.currentEpisode, state.episodes, handleEpisodeChange]);
 
     // Effect untuk mengupdate state ketika data berubah
     useEffect(() => {
-        if (dramaInfo && episodes.length > 0 && currentEpisode) {
+        if (dramaData.dramaInfo && dramaData.episodes.length > 0 && dramaData.currentEpisode) {
             setState({
-                dramaInfo,
-                episodes,
-                currentEpisode,
-                isLoading: false,
-                error: null
+                dramaInfo: dramaData.dramaInfo,
+                episodes: dramaData.episodes,
+                currentEpisode: dramaData.currentEpisode,
+                isLoading: dramaData.isLoading,
+                error: dramaData.error
             });
         }
-    }, [dramaInfo, episodes, currentEpisode]);
+    }, [dramaData]);
 
     useEffect(() => {
         if (videoRef.current && state.currentEpisode?.url) {
