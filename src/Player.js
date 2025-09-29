@@ -585,7 +585,7 @@ export default function Player() {
     }
   }, []);
 
-  // Fungsi verifikasi password
+  // Fungsi verifikasi password - FIXED: include VALID_PASSWORD in dependencies
   const verifyPassword = useCallback(async (password) => {
     setIsVerifyingPassword(true);
     
@@ -602,7 +602,7 @@ export default function Player() {
       alert('❌ Password salah! Silakan coba lagi.');
       return false;
     }
-  }, []);
+  }, [VALID_PASSWORD]); // FIXED: Added VALID_PASSWORD dependency
 
   // Fungsi untuk membuka modal password
   const openPasswordModal = useCallback((type, episode = null, bots = null) => {
@@ -714,7 +714,7 @@ export default function Player() {
     }
   }, [dramaData.info, isAuthenticated, openPasswordModal]);
 
-  // Fungsi untuk mengirim semua episode SATU PER SATU
+  // Fungsi untuk mengirim semua episode SATU PER SATU - FIXED: no unsafe references in loop
   const sendAllToTelegram = useCallback(async (bots) => {
     if (!isAuthenticated) {
       openPasswordModal('all', null, bots);
@@ -745,19 +745,17 @@ export default function Player() {
     let totalFailed = 0;
 
     try {
-      for (let i = 0; i < episodesWithUrl.length; i++) {
+      // FIXED: Create a separate function to handle sending individual episode
+      const sendEpisode = async (episode, currentIndex) => {
         // Check jika proses dibatalkan
         if (isCancelledRef.current) {
-          console.log('🚫 Proses dibatalkan oleh user');
-          break;
+          return { success: false, cancelled: true };
         }
 
-        const episode = episodesWithUrl[i];
-        
-        // Update progress modal
+        // Update progress modal dengan current values
         setProgressModal(prev => ({
           ...prev,
-          current: i + 1,
+          current: currentIndex + 1,
           currentEpisode: episode,
           successCount: totalSuccess,
           failedCount: totalFailed
@@ -785,7 +783,7 @@ export default function Player() {
             
             const telegramUrl = `https://api.telegram.org/bot${botToken}/sendMessage?chat_id=${chatId}&text=${message}&parse_mode=Markdown`;
             
-            console.log(`📤 Mengirim episode ${i + 1}/${episodesWithUrl.length}: ${episode.title}`);
+            console.log(`📤 Mengirim episode ${currentIndex + 1}/${episodesWithUrl.length}: ${episode.title}`);
             
             const response = await fetch(telegramUrl, {
               method: 'GET',
@@ -810,13 +808,26 @@ export default function Player() {
           }
         }
 
-        if (episodeSuccess) {
+        return { success: episodeSuccess, cancelled: false };
+      };
+
+      // Process episodes sequentially
+      for (let i = 0; i < episodesWithUrl.length; i++) {
+        const episode = episodesWithUrl[i];
+        const result = await sendEpisode(episode, i);
+        
+        if (result.cancelled) {
+          console.log('🚫 Proses dibatalkan oleh user');
+          break;
+        }
+
+        if (result.success) {
           totalSuccess++;
         } else {
           totalFailed++;
         }
 
-        // Update progress counts
+        // Update progress counts menggunakan functional update
         setProgressModal(prev => ({
           ...prev,
           successCount: totalSuccess,
