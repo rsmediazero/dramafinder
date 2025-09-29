@@ -3,11 +3,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-// Import komponen analytics dan security
-import { AnalyticsTracker } from "@/lib/analyticsTracker";
-import { Suspense } from "react";
-import { DisableDevTools } from "@/lib/disableDevTools";
-
 // --- Komponen Individual ---
 const LoadingSpinner = () => ( <div className="flex justify-center items-center p-8"><div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500"></div></div> );
 const ErrorMessage = ({ message }) => ( <div className="bg-red-900 text-red-200 p-4 rounded-lg text-center"><p><strong>Oops! Terjadi Kesalahan</strong></p><p>{message}</p></div> );
@@ -43,6 +38,7 @@ const DramaCard = ({ drama, onClick }) => (
         </div>
     </div>
 );
+
 
 // --- Komponen Utama Aplikasi ---
 const API_BASE_URL = process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3001';
@@ -92,25 +88,8 @@ export default function App() {
             const newDramas = result.data.newTheaterList.records.map(formatDramaData);
             setDramas(prevDramas => pageNum === 1 ? newDramas : [...prevDramas, ...newDramas]);
 
-            // Track analytics untuk page load
-            if (typeof window !== 'undefined' && window.gtag) {
-                window.gtag('event', 'page_view', {
-                    page_title: 'DramaBoxFinder Home',
-                    page_location: window.location.href,
-                    drama_count: newDramas.length
-                });
-            }
-
         } catch (err) {
             setError(err.message);
-            
-            // Track error analytics
-            if (typeof window !== 'undefined' && window.gtag) {
-                window.gtag('event', 'error', {
-                    error_message: err.message,
-                    error_type: 'fetch_error'
-                });
-            }
         } finally {
             setIsLoading(false);
             setIsMoreLoading(false);
@@ -135,42 +114,15 @@ export default function App() {
             
             const formattedResults = result.data.suggestList.map(formatDramaData);
             setDramas(formattedResults);
-            
-            // Track search analytics
-            if (typeof window !== 'undefined' && window.gtag) {
-                window.gtag('event', 'search', {
-                    search_term: keyword,
-                    result_count: formattedResults.length
-                });
-            }
         } catch (err) {
             setError(err.message);
-            
-            // Track search error analytics
-            if (typeof window !== 'undefined' && window.gtag) {
-                window.gtag('event', 'search_error', {
-                    search_term: keyword,
-                    error_message: err.message
-                });
-            }
         } finally {
             setIsLoading(false);
         }
     }, []);
     
     // --- EVENT HANDLERS ---
-    const handleLoadMore = () => {
-        setPage(prevPage => prevPage + 1);
-        
-        // Track load more analytics
-        if (typeof window !== 'undefined' && window.gtag) {
-            window.gtag('event', 'load_more', {
-                page_number: page + 1,
-                current_drama_count: dramas.length
-            });
-        }
-    };
-    
+    const handleLoadMore = () => setPage(prevPage => prevPage + 1);
     const handleSearchChange = (e) => setSearchTerm(e.target.value);
     
 const handleSelectDrama = useCallback(async (drama) => {
@@ -187,15 +139,6 @@ const handleSelectDrama = useCallback(async (drama) => {
         const result = await response.json();
         if (result.success === false) throw new Error(result.message || "Gagal mendapatkan daftar episode.");
 
-        // Track drama selection analytics
-        if (typeof window !== 'undefined' && window.gtag) {
-            window.gtag('event', 'select_drama', {
-                drama_id: drama.id,
-                drama_title: drama.title,
-                episode_count: result.episodes?.length || 0
-            });
-        }
-
         navigate(`/player/${drama.id}`, {
             state: {
                 dramaInfo: drama,
@@ -205,15 +148,6 @@ const handleSelectDrama = useCallback(async (drama) => {
         });
     } catch (err) {
         setError(err.message); // <-- Atur error jika fetch gagal
-        
-        // Track error analytics
-        if (typeof window !== 'undefined' && window.gtag) {
-            window.gtag('event', 'drama_selection_error', {
-                drama_id: drama.id,
-                drama_title: drama.title,
-                error_message: err.message
-            });
-        }
     } finally {
         setIsNavigating(false); // <-- 3. Selalu matikan loading setelah selesai
     }
@@ -241,12 +175,6 @@ const handleSelectDrama = useCallback(async (drama) => {
     // --- RENDER ---
     return (
         <div className="bg-gray-900 min-h-screen text-white font-sans">
-            {/* Analytics dan Security Components */}
-            <Suspense fallback={null}>
-                <AnalyticsTracker />
-                <DisableDevTools />
-            </Suspense>
-            
             {isNavigating && (
             <div className="fixed inset-0 bg-black/70 flex justify-center items-center z-50">
                 <div className="flex flex-col items-center">
@@ -264,13 +192,7 @@ const handleSelectDrama = useCallback(async (drama) => {
                 </header>
                 
                 <div className="mb-8 max-w-lg mx-auto">
-                    <input 
-                        type="text" 
-                        placeholder="Cari judul drama..." 
-                        value={searchTerm} 
-                        onChange={handleSearchChange} 
-                        className="w-full px-4 py-3 bg-gray-800 border-2 border-gray-700 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition" 
-                    />
+                    <input type="text" placeholder="Cari judul drama..." value={searchTerm} onChange={handleSearchChange} className="w-full px-4 py-3 bg-gray-800 border-2 border-gray-700 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition" />
                 </div>
                 
                 {isLoading && <LoadingSpinner />}
@@ -280,11 +202,7 @@ const handleSelectDrama = useCallback(async (drama) => {
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
                         {dramas.length > 0 ? (
                             dramas.map(drama => (
-                                <DramaCard 
-                                    key={`${drama.id}-${Math.random()}`} 
-                                    drama={drama} 
-                                    onClick={handleSelectDrama} 
-                                />
+                                <DramaCard key={`${drama.id}-${Math.random()}`} drama={drama} onClick={handleSelectDrama} />
                             ))
                         ) : (
                             <p className="col-span-full text-center text-gray-500">
@@ -306,24 +224,6 @@ const handleSelectDrama = useCallback(async (drama) => {
                     </div>
                 )}
             </main>
-            
-            {/* Google Analytics Script */}
-            <script
-                async
-                src={`https://www.googletagmanager.com/gtag/js?id=${process.env.REACT_APP_GA_ID || 'GA_MEASUREMENT_ID'}`}
-            />
-            <script
-                dangerouslySetInnerHTML={{
-                    __html: `
-                        window.dataLayer = window.dataLayer || [];
-                        function gtag(){dataLayer.push(arguments);}
-                        gtag('js', new Date());
-                        gtag('config', '${process.env.REACT_APP_GA_ID || 'GA_MEASUREMENT_ID'}', {
-                            page_path: window.location.pathname,
-                        });
-                    `,
-                }}
-            />
         </div>
     );
 }
