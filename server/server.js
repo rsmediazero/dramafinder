@@ -1,17 +1,26 @@
-// Di server/server.js, tambahkan kode berikut:
-
+// Di server/server.js
 const TelegramVIPBot = require('./bot/telegramBot');
 
-// Inisialisasi bot (jalankan sekali saja)
-let vipBot;
-try {
-    vipBot = new TelegramVIPBot();
-    console.log('🤖 Telegram VIP Bot initialized');
-} catch (error) {
-    console.error('❌ Failed to initialize Telegram Bot:', error);
-}
+// Inisialisasi bot dengan error handling
+let vipBot = null;
 
-// API untuk validasi kode VIP
+const initializeBot = () => {
+    try {
+        console.log('🔧 Starting Telegram Bot...');
+        vipBot = new TelegramVIPBot();
+        console.log('✅ Telegram Bot started successfully');
+    } catch (error) {
+        console.error('❌ Failed to start Telegram Bot:', error.message);
+        console.log('⚠️ VIP features will be disabled');
+    }
+};
+
+// Start bot setelah server ready
+setTimeout(() => {
+    initializeBot();
+}, 2000);
+
+// API endpoints dengan bot availability check
 app.post('/api/validate-vip', (req, res) => {
     const { code } = req.body;
     
@@ -20,14 +29,18 @@ app.post('/api/validate-vip', (req, res) => {
     }
 
     if (!vipBot) {
-        return res.json({ valid: false, message: 'Sistem VIP sedang maintenance' });
+        return res.json({ valid: false, message: 'Sistem VIP sedang maintenance. Silakan coba lagi nanti.' });
     }
 
-    const result = vipBot.validateVIPCode(code);
-    res.json(result);
+    try {
+        const result = vipBot.validateVIPCode(code);
+        res.json(result);
+    } catch (error) {
+        console.error('VIP Validation Error:', error);
+        res.json({ valid: false, message: 'Error validasi kode' });
+    }
 });
 
-// API untuk aktivasi kode VIP
 app.post('/api/activate-vip', (req, res) => {
     const { code, userInfo } = req.body;
     
@@ -36,20 +49,14 @@ app.post('/api/activate-vip', (req, res) => {
     }
 
     if (!vipBot) {
-        return res.json({ success: false, message: 'Sistem VIP sedang maintenance' });
+        return res.json({ success: false, message: 'Sistem VIP sedang maintenance. Silakan coba lagi nanti.' });
     }
 
-    const result = vipBot.activateVIPCode(code, userInfo || 'Web User');
-    res.json(result);
-});
-
-// API untuk statistics (admin only)
-app.get('/api/vip-statistics', (req, res) => {
-    // Tambahkan auth check di sini jika diperlukan
-    if (!vipBot) {
-        return res.json({ error: 'Sistem VIP tidak tersedia' });
+    try {
+        const result = vipBot.activateVIPCode(code, userInfo || 'Web User');
+        res.json(result);
+    } catch (error) {
+        console.error('VIP Activation Error:', error);
+        res.json({ success: false, message: 'Error aktivasi kode' });
     }
-    
-    const stats = vipBot.vipGenerator.getStatistics();
-    res.json(stats);
 });
