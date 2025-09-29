@@ -13,7 +13,12 @@ const PASSWORD_CONFIG = {
     MAX_ATTEMPTS: 3,
     
     // Block duration in milliseconds (24 jam)
-    BLOCK_DURATION: 24 * 60 * 60 * 1000
+    BLOCK_DURATION: 24 * 60 * 60 * 1000,
+    
+    // VIP Access codes
+    VIP_CODES: process.env.REACT_APP_VIP_CODES 
+        ? process.env.REACT_APP_VIP_CODES.split(',')
+        : ['VIP123', 'PREMIUM456', 'ACCESS789']
 };
 
 // Security Service untuk handle blocking
@@ -21,6 +26,7 @@ class SecurityService {
     constructor() {
         this.storageKey = 'drama_player_security';
         this.blockedKey = 'drama_player_blocked';
+        this.vipKey = 'drama_player_vip';
     }
 
     // Check jika user sudah diblokir
@@ -105,6 +111,34 @@ class SecurityService {
         return PASSWORD_CONFIG.VALID_PASSWORDS.includes(inputPassword.trim());
     }
 
+    // Validate VIP code
+    validateVIPCode(code) {
+        return PASSWORD_CONFIG.VIP_CODES.includes(code.trim().toUpperCase());
+    }
+
+    // Activate VIP
+    activateVIP() {
+        const vipData = {
+            activated: true,
+            timestamp: Date.now(),
+            userAgent: navigator.userAgent
+        };
+        localStorage.setItem(this.vipKey, JSON.stringify(vipData));
+    }
+
+    // Check if user has VIP access
+    hasVIPAccess() {
+        const vipData = localStorage.getItem(this.vipKey);
+        if (!vipData) return false;
+
+        try {
+            const { activated } = JSON.parse(vipData);
+            return activated === true;
+        } catch (error) {
+            return false;
+        }
+    }
+
     // Get blocked user info
     getBlockedUserInfo() {
         const blockedData = localStorage.getItem(this.blockedKey);
@@ -150,6 +184,220 @@ const ErrorMessage = ({ message, onRetry }) => (
         </div>
     </div>
 );
+
+// Komponen VIP Modal
+const VIPModal = ({ isOpen, onClose, onSuccess }) => {
+    const [activeTab, setActiveTab] = useState('subscribe'); // 'subscribe' or 'code'
+    const [vipCode, setVipCode] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState('');
+
+    const handleVIPCodeSubmit = async (e) => {
+        e.preventDefault();
+        if (!vipCode.trim()) {
+            setError('Kode VIP tidak boleh kosong');
+            return;
+        }
+
+        setIsLoading(true);
+        setError('');
+
+        // Simulate API call delay
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        try {
+            const isValid = securityService.validateVIPCode(vipCode);
+            
+            if (isValid) {
+                securityService.activateVIP();
+                onSuccess();
+                setVipCode('');
+            } else {
+                setError('Kode VIP tidak valid!');
+                setVipCode('');
+            }
+        } catch (err) {
+            setError('Terjadi kesalahan sistem');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleSubscribe = () => {
+        // Redirect ke Telegram admin
+        const telegramAdmins = ['@contoh1', '@contoh2', '@contoh3'];
+        const randomAdmin = telegramAdmins[Math.floor(Math.random() * telegramAdmins.length)];
+        const message = `Halo admin, saya ingin berlangganan VIP DramaBoxFinder.`;
+        const telegramUrl = `https://t.me/${randomAdmin.replace('@', '')}?text=${encodeURIComponent(message)}`;
+        window.open(telegramUrl, '_blank');
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+            <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md">
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-bold text-white">Akses VIP Diperlukan</h3>
+                    <button
+                        onClick={onClose}
+                        className="text-gray-400 hover:text-white text-xl"
+                    >
+                        ×
+                    </button>
+                </div>
+                
+                <div className="bg-purple-900 border border-purple-700 rounded p-3 mb-4">
+                    <p className="text-purple-200 text-sm text-center">
+                        🎬 Episode 6 dan seterusnya membutuhkan akses VIP
+                    </p>
+                </div>
+
+                {/* Tabs */}
+                <div className="flex mb-4 border-b border-gray-700">
+                    <button
+                        onClick={() => setActiveTab('subscribe')}
+                        className={`flex-1 py-2 text-center font-medium ${
+                            activeTab === 'subscribe' 
+                                ? 'text-purple-400 border-b-2 border-purple-400' 
+                                : 'text-gray-400 hover:text-white'
+                        }`}
+                    >
+                        Berlangganan
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('code')}
+                        className={`flex-1 py-2 text-center font-medium ${
+                            activeTab === 'code' 
+                                ? 'text-purple-400 border-b-2 border-purple-400' 
+                                : 'text-gray-400 hover:text-white'
+                        }`}
+                    >
+                        Masukan Kode
+                    </button>
+                </div>
+
+                {/* Subscribe Tab */}
+                {activeTab === 'subscribe' && (
+                    <div className="space-y-4">
+                        <div className="text-center mb-4">
+                            <h4 className="text-lg font-bold text-white mb-2">Berlangganan VIP</h4>
+                            <p className="text-gray-300 text-sm">Untuk mengunduh dan menonton semua episode</p>
+                        </div>
+
+                        <div className="space-y-3">
+                            {/* Paket 1 Minggu */}
+                            <div className="bg-gray-700 rounded-lg p-4 border border-gray-600">
+                                <div className="flex justify-between items-center mb-2">
+                                    <h5 className="font-semibold text-white">Paket VIP Premium</h5>
+                                    <span className="bg-yellow-500 text-black text-xs font-bold px-2 py-1 rounded">
+                                        1 Minggu
+                                    </span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-2xl font-bold text-green-400">Rp 20.000</span>
+                                    <button
+                                        onClick={handleSubscribe}
+                                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors text-sm font-medium"
+                                    >
+                                        Daftar
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Paket 1 Bulan */}
+                            <div className="bg-purple-900 rounded-lg p-4 border-2 border-purple-500 relative">
+                                <div className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded">
+                                    POPULAR
+                                </div>
+                                <div className="flex justify-between items-center mb-2">
+                                    <h5 className="font-semibold text-white">Paket VIP Premium</h5>
+                                    <span className="bg-purple-500 text-white text-xs font-bold px-2 py-1 rounded">
+                                        1 Bulan
+                                    </span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-2xl font-bold text-yellow-400">Rp 50.000</span>
+                                    <button
+                                        onClick={handleSubscribe}
+                                        className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors text-sm font-medium"
+                                    >
+                                        Daftar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="text-center mt-4">
+                            <p className="text-gray-400 text-sm">
+                                Chat admin Telegram untuk berlangganan:
+                            </p>
+                            <div className="flex justify-center gap-2 mt-2">
+                                {['@contoh1', '@contoh2', '@contoh3'].map((admin, index) => (
+                                    <span key={index} className="bg-gray-700 text-gray-300 text-xs px-2 py-1 rounded">
+                                        {admin}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* VIP Code Tab */}
+                {activeTab === 'code' && (
+                    <form onSubmit={handleVIPCodeSubmit}>
+                        <div className="mb-4">
+                            <label className="block text-gray-300 text-sm font-medium mb-2">
+                                Masukkan Kode VIP:
+                            </label>
+                            <input
+                                type="text"
+                                value={vipCode}
+                                onChange={(e) => {
+                                    setVipCode(e.target.value.toUpperCase());
+                                    setError('');
+                                }}
+                                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-purple-500"
+                                placeholder="Masukkan kode VIP..."
+                                autoFocus
+                            />
+                        </div>
+
+                        {error && (
+                            <div className="bg-red-900 border border-red-700 rounded p-3 mb-4">
+                                <p className="text-red-200 text-sm">{error}</p>
+                            </div>
+                        )}
+
+                        <div className="flex gap-2 justify-end">
+                            <button
+                                type="button"
+                                onClick={onClose}
+                                className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
+                            >
+                                Batal
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={isLoading || !vipCode.trim()}
+                                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 text-white rounded-lg transition-colors flex items-center gap-2"
+                            >
+                                {isLoading ? (
+                                    <>
+                                        <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                                        Memverifikasi...
+                                    </>
+                                ) : (
+                                    'Aktifkan VIP'
+                                )}
+                            </button>
+                        </div>
+                    </form>
+                )}
+            </div>
+        </div>
+    );
+};
 
 // Komponen Password Modal
 const PasswordModal = ({ isOpen, onClose, onSuccess, remainingAttempts, actionType = "akses" }) => {
@@ -335,6 +583,7 @@ const BlockedScreen = () => {
 const useSecurity = () => {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [showPasswordModal, setShowPasswordModal] = useState(false);
+    const [showVIPModal, setShowVIPModal] = useState(false);
     const [remainingAttempts, setRemainingAttempts] = useState(PASSWORD_CONFIG.MAX_ATTEMPTS);
     const [modalAction, setModalAction] = useState("akses");
 
@@ -357,23 +606,43 @@ const useSecurity = () => {
         return false;
     };
 
+    const requireVIPAccess = () => {
+        if (securityService.hasVIPAccess()) return true;
+        
+        setShowVIPModal(true);
+        return false;
+    };
+
     const handleAuthSuccess = () => {
         setIsAuthenticated(true);
         setShowPasswordModal(false);
+    };
+
+    const handleVIPSuccess = () => {
+        setShowVIPModal(false);
+        window.location.reload(); // Reload untuk refresh akses episode
     };
 
     const handleCloseModal = () => {
         setShowPasswordModal(false);
     };
 
+    const handleCloseVIPModal = () => {
+        setShowVIPModal(false);
+    };
+
     return {
         isAuthenticated,
         showPasswordModal,
+        showVIPModal,
         remainingAttempts,
         modalAction,
         requireAuth,
+        requireVIPAccess,
         handleAuthSuccess,
-        handleCloseModal
+        handleVIPSuccess,
+        handleCloseModal,
+        handleCloseVIPModal
     };
 };
 
@@ -511,6 +780,50 @@ const CopyLinksBox = ({ episodes }) => {
                 actionType={modalAction}
             />
         </>
+    );
+};
+
+// Komponen Episode Button dengan sistem VIP
+const EpisodeButton = ({ episode, isCurrent, onClick, episodeNumber, totalEpisodes }) => {
+    const { requireVIPAccess } = useSecurity();
+    const hasVIPAccess = securityService.hasVIPAccess();
+    
+    // Episode 1-5 gratis, episode 6+ butuh VIP
+    const isLocked = episodeNumber > 5 && !hasVIPAccess;
+    const isVIPOnly = episodeNumber > 5;
+
+    const handleClick = () => {
+        if (isLocked) {
+            requireVIPAccess();
+            return;
+        }
+        onClick(episode);
+    };
+
+    return (
+        <button
+            onClick={handleClick}
+            disabled={!episode.url || isLocked}
+            className={`
+                w-full p-3 rounded text-center transition-all duration-200 text-sm font-medium relative
+                ${isCurrent 
+                    ? 'bg-red-600 text-white shadow-lg transform scale-105' 
+                    : isLocked
+                        ? 'bg-gray-900 text-gray-500 cursor-not-allowed opacity-50'
+                        : episode.url 
+                            ? 'bg-gray-700 hover:bg-gray-600 hover:shadow-md text-white' 
+                            : 'bg-gray-900 text-gray-500 cursor-not-allowed opacity-50'
+                }
+            `}
+            title={isLocked ? "Episode ini membutuhkan akses VIP" : episode.title}
+        >
+            {episode.title.replace('EP ', '')}
+            {isVIPOnly && (
+                <span className="absolute -top-1 -right-1">
+                    {isLocked ? '🔒' : '⭐'}
+                </span>
+            )}
+        </button>
     );
 };
 
@@ -679,32 +992,19 @@ const VideoPlayer = ({ currentEpisode, videoRef, onEnded, onError }) => (
     </div>
 );
 
-// Komponen Episode Button
-const EpisodeButton = ({ episode, isCurrent, onClick }) => (
-    <button
-        onClick={() => onClick(episode)}
-        disabled={!episode.url}
-        className={`
-            w-full p-3 rounded text-center transition-all duration-200 text-sm font-medium
-            ${isCurrent 
-                ? 'bg-red-600 text-white shadow-lg transform scale-105' 
-                : episode.url 
-                    ? 'bg-gray-700 hover:bg-gray-600 hover:shadow-md text-white' 
-                    : 'bg-gray-900 text-gray-500 cursor-not-allowed opacity-50'
-            }
-        `}
-        title={episode.title}
-    >
-        {episode.title.replace('EP ', '')}
-    </button>
-);
-
 // Main Player Component
 export default function Player() {
     const location = useLocation();
     const navigate = useNavigate();
     const { bookId } = useParams();
     const videoRef = useRef(null);
+    
+    const {
+        showVIPModal,
+        requireVIPAccess,
+        handleVIPSuccess,
+        handleCloseVIPModal
+    } = useSecurity();
     
     // Check jika user diblokir - harus dipanggil sebelum hooks lainnya
     const isBlocked = securityService.isUserBlocked();
@@ -793,6 +1093,9 @@ export default function Player() {
         );
     }
 
+    const hasVIPAccess = securityService.hasVIPAccess();
+    const lockedEpisodesCount = episodes.filter((_, index) => index + 1 > 5).length;
+
     return (
         <div className="bg-gray-900 min-h-screen text-white p-4 md:p-8">
             <div className="max-w-4xl mx-auto">
@@ -828,23 +1131,93 @@ export default function Player() {
                     <div className="border-t border-gray-700 pt-4">
                         <CopyLinksBox episodes={episodes} />
                         
+                        {/* VIP Info Banner */}
+                        {!hasVIPAccess && lockedEpisodesCount > 0 && (
+                            <div className="bg-purple-900 border border-purple-700 rounded-lg p-4 mb-4">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <h4 className="font-bold text-white mb-1">🎬 Akses VIP Diperlukan</h4>
+                                        <p className="text-purple-200 text-sm">
+                                            {lockedEpisodesCount} episode terkunci. Berlangganan VIP untuk menonton semua episode.
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={requireVIPAccess}
+                                        className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors text-sm font-medium"
+                                    >
+                                        Berlangganan
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* VIP Status */}
+                        {hasVIPAccess && (
+                            <div className="bg-green-900 border border-green-700 rounded-lg p-3 mb-4">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-green-400">⭐</span>
+                                    <span className="text-green-200 text-sm font-medium">
+                                        Akses VIP Aktif - Anda dapat menonton semua episode
+                                    </span>
+                                </div>
+                            </div>
+                        )}
+                        
                         <h3 className="text-lg font-bold mb-4">
                             Daftar Episode ({episodes.length})
+                            {!hasVIPAccess && lockedEpisodesCount > 0 && (
+                                <span className="text-purple-400 text-sm ml-2">
+                                    ({episodes.length - lockedEpisodesCount} gratis, {lockedEpisodesCount} VIP)
+                                </span>
+                            )}
                         </h3>
                         
                         <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2 max-h-64 overflow-y-auto pr-2">
-                            {episodes.map(ep => (
+                            {episodes.map((ep, index) => (
                                 <EpisodeButton
                                     key={ep.episodeNumber}
                                     episode={ep}
                                     isCurrent={currentEpisode.episodeNumber === ep.episodeNumber}
                                     onClick={handleEpisodeChange}
+                                    episodeNumber={index + 1}
+                                    totalEpisodes={episodes.length}
                                 />
                             ))}
+                        </div>
+
+                        {/* Legend */}
+                        <div className="flex flex-wrap gap-4 mt-4 text-xs text-gray-400">
+                            <div className="flex items-center gap-1">
+                                <div className="w-3 h-3 bg-red-600 rounded"></div>
+                                <span>Sedang diputar</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                                <div className="w-3 h-3 bg-gray-700 rounded"></div>
+                                <span>Episode gratis</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                                <div className="w-3 h-3 bg-gray-700 rounded relative">
+                                    <span className="absolute -top-1 -right-1 text-xs">⭐</span>
+                                </div>
+                                <span>Episode VIP</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                                <div className="w-3 h-3 bg-gray-900 rounded relative">
+                                    <span className="absolute -top-1 -right-1 text-xs">🔒</span>
+                                </div>
+                                <span>Terkunci</span>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
+
+            {/* VIP Modal */}
+            <VIPModal
+                isOpen={showVIPModal}
+                onClose={handleCloseVIPModal}
+                onSuccess={handleVIPSuccess}
+            />
         </div>
     );
 }
