@@ -137,6 +137,38 @@ const EpisodeButton = ({
   );
 };
 
+// Komponen Confirmation Modal
+const DownloadConfirmationModal = ({ isOpen, onConfirm, onCancel, episodeCount }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-gray-800 p-6 rounded-lg max-w-md w-full mx-4">
+        <h3 className="text-lg font-bold text-white mb-4">
+          Download Semua Episode?
+        </h3>
+        <p className="text-gray-300 mb-6">
+          Anda akan mendownload {episodeCount} episode. Ini mungkin memakan waktu beberapa saat dan menggunakan kuota internet.
+        </p>
+        <div className="flex gap-3 justify-end">
+          <button
+            onClick={onCancel}
+            className="bg-gray-600 hover:bg-gray-500 text-white px-4 py-2 rounded transition-colors"
+          >
+            Batal
+          </button>
+          <button
+            onClick={onConfirm}
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded transition-colors"
+          >
+            Download Semua
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function Player() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -147,6 +179,7 @@ export default function Player() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [showDownloadModal, setShowDownloadModal] = useState(false);
 
   const fetchDramaData = useCallback(async (targetBookId) => {
     setIsLoading(true);
@@ -229,60 +262,27 @@ export default function Player() {
     }
   }, [dramaData.info]);
 
-  // Alternative download method menggunakan fetch (jika direct download tidak bekerja)
-  const handleDownloadWithFetch = useCallback(async (episode) => {
-    if (!episode?.url) {
-      alert("URL download tidak tersedia untuk episode ini.");
+  const handleDownloadAllEpisodes = useCallback(() => {
+    const episodesWithUrl = dramaData.episodes.filter(ep => ep.url);
+    
+    if (episodesWithUrl.length === 0) {
+      alert("Tidak ada episode yang dapat didownload.");
       return;
     }
 
-    setIsDownloading(true);
-    
-    try {
-      console.log('Download dengan fetch dari:', episode.url);
-      
-      const response = await fetch(episode.url);
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: Gagal mengunduh video`);
-      }
+    // Tutup modal
+    setShowDownloadModal(false);
 
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      
-      // Buat nama file yang meaningful
-      const fileName = `${dramaData.info?.title || 'Drama'}_${episode.title}.mp4`;
-      
-      link.href = url;
-      link.download = fileName;
-      link.style.display = 'none';
-      
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      // Cleanup URL object
+    // Download semua episode satu per satu
+    episodesWithUrl.forEach((episode, index) => {
+      // Delay sedikit antara setiap download untuk menghindari blockage
       setTimeout(() => {
-        window.URL.revokeObjectURL(url);
-        console.log('Download completed:', fileName);
-      }, 1000);
-      
-    } catch (err) {
-      console.error("Gagal mengunduh dengan fetch:", err);
-      alert("Gagal mengunduh video. Silakan coba metode download langsung.");
-      
-      // Fallback ke direct download
-      const link = document.createElement('a');
-      link.href = episode.url;
-      link.download = `${dramaData.info?.title || 'Drama'}_${episode.title}.mp4`;
-      link.style.display = 'none';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } finally {
-      setIsDownloading(false);
-    }
-  }, [dramaData.info]);
+        handleDownloadEpisode(episode);
+      }, index * 1000); // 1 detik delay antara setiap download
+    });
+
+    alert(`Memulai download ${episodesWithUrl.length} episode. Browser akan memproses satu per satu.`);
+  }, [dramaData.episodes, handleDownloadEpisode]);
 
   const handleEpisodeChange = useCallback((episode) => {
     if (episode.url) {
@@ -497,13 +497,7 @@ export default function Player() {
             </h3>
             {dramaData.episodes.some(ep => ep.url) && (
               <button
-                onClick={() => {
-                  if (confirm(`Download semua ${dramaData.episodes.length} episode?`)) {
-                    dramaData.episodes.forEach(ep => {
-                      if (ep.url) handleDownloadEpisode(ep);
-                    });
-                  }
-                }}
+                onClick={() => setShowDownloadModal(true)}
                 className="bg-blue-600 hover:bg-blue-700 text-white text-xs py-1 px-3 rounded transition-colors"
                 title="Download semua episode"
               >
@@ -525,6 +519,14 @@ export default function Player() {
           </div>
         </div>
       </div>
+
+      {/* Download Confirmation Modal */}
+      <DownloadConfirmationModal
+        isOpen={showDownloadModal}
+        onConfirm={handleDownloadAllEpisodes}
+        onCancel={() => setShowDownloadModal(false)}
+        episodeCount={dramaData.episodes.filter(ep => ep.url).length}
+      />
 
       {/* Downloading Indicator */}
       {isDownloading && (
