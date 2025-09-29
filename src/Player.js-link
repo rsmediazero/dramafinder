@@ -149,166 +149,16 @@ const EpisodeButton = ({
   );
 };
 
-// Komponen Progress Modal untuk Kirim Semua
-const ProgressModal = ({ isOpen, current, total, currentEpisode, successCount, failedCount, onCancel }) => {
-  const progress = total > 0 ? (current / total) * 100 : 0;
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-gray-800 p-6 rounded-lg max-w-md w-full mx-4">
-        <h3 className="text-lg font-bold text-white mb-4">
-          📤 Mengirim Semua Episode
-        </h3>
-        
-        {/* Progress Bar */}
-        <div className="mb-4">
-          <div className="flex justify-between text-sm text-gray-300 mb-2">
-            <span>Progress: {current} / {total}</span>
-            <span>{Math.round(progress)}%</span>
-          </div>
-          <div className="w-full bg-gray-700 rounded-full h-3">
-            <div 
-              className="bg-blue-600 h-3 rounded-full transition-all duration-500"
-              style={{ width: `${progress}%` }}
-            ></div>
-          </div>
-        </div>
-
-        {/* Current Episode */}
-        {currentEpisode && (
-          <div className="bg-gray-700 p-3 rounded mb-4">
-            <p className="text-white text-sm font-semibold">
-              🎬 Sedang mengirim: {currentEpisode.title}
-            </p>
-            <p className="text-gray-300 text-xs truncate">
-              🔗 {currentEpisode.url.substring(0, 40)}...
-            </p>
-          </div>
-        )}
-
-        {/* Statistics */}
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          <div className="bg-green-900 bg-opacity-50 p-3 rounded text-center">
-            <p className="text-green-400 text-lg font-bold">{successCount}</p>
-            <p className="text-green-300 text-xs">Berhasil</p>
-          </div>
-          <div className="bg-red-900 bg-opacity-50 p-3 rounded text-center">
-            <p className="text-red-400 text-lg font-bold">{failedCount}</p>
-            <p className="text-red-300 text-xs">Gagal</p>
-          </div>
-        </div>
-
-        {/* Info */}
-        <div className="bg-yellow-900 bg-opacity-30 p-3 rounded mb-4">
-          <p className="text-yellow-300 text-xs">
-            ⚡ Mengirim satu per satu untuk menghindari spam detection...
-          </p>
-        </div>
-
-        <button
-          onClick={onCancel}
-          className="w-full bg-gray-600 hover:bg-gray-500 text-white px-4 py-2 rounded transition-colors"
-        >
-          Batalkan Proses
-        </button>
-      </div>
-    </div>
-  );
-};
-
-// Komponen Password Modal
-const PasswordModal = ({ isOpen, onClose, onVerify, isVerifying }) => {
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    setError('');
-    
-    if (!password.trim()) {
-      setError('Password tidak boleh kosong');
-      return;
-    }
-    
-    onVerify(password);
-  };
-
-  const handleClose = () => {
-    setPassword('');
-    setError('');
-    onClose();
-  };
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-gray-800 p-6 rounded-lg max-w-md w-full mx-4">
-        <h3 className="text-lg font-bold text-white mb-4">
-          🔒 Masukkan Password
-        </h3>
-        
-        <form onSubmit={handleSubmit}>
-          <div className="mb-4">
-            <label className="block text-gray-300 text-sm mb-2">
-              Password Akses Telegram:
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:border-blue-500"
-              placeholder="Masukkan password..."
-              disabled={isVerifying}
-              autoFocus
-            />
-            {error && (
-              <p className="text-red-400 text-sm mt-1">{error}</p>
-            )}
-          </div>
-
-          <div className="flex gap-3 justify-end">
-            <button
-              type="button"
-              onClick={handleClose}
-              disabled={isVerifying}
-              className="bg-gray-600 hover:bg-gray-500 text-white px-4 py-2 rounded transition-colors disabled:opacity-50"
-            >
-              Batal
-            </button>
-            <button
-              type="submit"
-              disabled={isVerifying || !password.trim()}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded transition-colors disabled:opacity-50 flex items-center gap-2"
-            >
-              {isVerifying ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
-                  Verifikasi...
-                </>
-              ) : (
-                '🔓 Masuk'
-              )}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-};
-
 // Komponen Modal untuk Telegram Single Episode
 const TelegramModal = ({ isOpen, onClose, onSend, episode, isSending }) => {
   const [selectedTokens, setSelectedTokens] = useState([]);
   
-  // Daftar token bot Telegram - TOKEN DISENSOR UNTUK KEAMANAN
+  // Daftar token bot Telegram - PASTIKAN TOKEN DAN CHAT ID ANDA BENAR
   const telegramTokens = [
     { 
-      token: process.env.REACT_APP_TELEGRAM_BOT_TOKEN_1 || '***SENSORED***', 
+      token: '8433377632:AAFjurpcQXQtiG7B8c6GyGXEKw5mjN-Vu0A', 
       name: 'DramaStream Bot',
-      chatId: process.env.REACT_APP_TELEGRAM_CHAT_ID_1 || '***SENSORED***'
+      chatId: 5451748453
     }
   ];
 
@@ -359,7 +209,7 @@ const TelegramModal = ({ isOpen, onClose, onSend, episode, isSending }) => {
                 <div>
                   <span className="text-white text-sm font-medium">{bot.name}</span>
                   <br />
-                  <span className="text-gray-400 text-xs">Chat ID: ***SENSORED***</span>
+                  <span className="text-gray-400 text-xs">Chat ID: {bot.chatId}</span>
                 </div>
               </label>
             ))}
@@ -409,9 +259,9 @@ const TelegramAllModal = ({ isOpen, onClose, onSend, episodes, isSending }) => {
   
   const telegramTokens = [
     { 
-      token: process.env.REACT_APP_TELEGRAM_BOT_TOKEN_1 || '***SENSORED***', 
+      token: '8433377632:AAFjurpcQXQtiG7B8c6GyGXEKw5mjN-Vu0A', 
       name: 'DramaStream Bot',
-      chatId: process.env.REACT_APP_TELEGRAM_CHAT_ID_1 || '***SENSORED***'
+      chatId: 5451748453
     }
   ];
 
@@ -461,7 +311,7 @@ const TelegramAllModal = ({ isOpen, onClose, onSend, episodes, isSending }) => {
                 <div>
                   <span className="text-white text-sm font-medium">{bot.name}</span>
                   <br />
-                  <span className="text-gray-400 text-xs">Chat ID: ***SENSORED***</span>
+                  <span className="text-gray-400 text-xs">Chat ID: {bot.chatId}</span>
                 </div>
               </label>
             ))}
@@ -476,10 +326,7 @@ const TelegramAllModal = ({ isOpen, onClose, onSend, episodes, isSending }) => {
             Akan mengirim semua episode ke {selectedTokens.length} bot yang dipilih
           </p>
           <p className="text-yellow-300 text-xs mt-1">
-            ⚡ Proses: Satu per satu dengan delay 3-5 detik
-          </p>
-          <p className="text-blue-300 text-xs">
-            ⏱️ Perkiraan waktu: {Math.ceil(episodes.length * 4)} detik
+            ⚠️ Proses ini mungkin memakan waktu beberapa menit
           </p>
         </div>
 
@@ -499,10 +346,10 @@ const TelegramAllModal = ({ isOpen, onClose, onSend, episodes, isSending }) => {
             {isSending ? (
               <>
                 <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
-                Memulai...
+                Mengirim...
               </>
             ) : (
-              `📤 Mulai Kirim ${episodes.length} Episode`
+              `📤 Kirim ${episodes.length} Episode`
             )}
           </button>
         </div>
@@ -522,33 +369,8 @@ export default function Player() {
   const [error, setError] = useState(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isSendingTelegram, setIsSendingTelegram] = useState(false);
-  const [isVerifyingPassword, setIsVerifyingPassword] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  
-  // State untuk progress modal
-  const [progressModal, setProgressModal] = useState({
-    open: false,
-    current: 0,
-    total: 0,
-    currentEpisode: null,
-    successCount: 0,
-    failedCount: 0
-  });
-  
-  const [passwordModal, setPasswordModal] = useState({ 
-    open: false, 
-    type: null, 
-    episode: null, 
-    bots: null 
-  });
   const [telegramModal, setTelegramModal] = useState({ open: false, episode: null });
   const [telegramAllModal, setTelegramAllModal] = useState({ open: false });
-
-  // Refs untuk cancel operation
-  const isCancelledRef = React.useRef(false);
-
-  // Password yang valid - GANTI DENGAN PASSWORD ANDA
-  const VALID_PASSWORD = process.env.REACT_APP_TELEGRAM_PASSWORD || 'admin123';
 
   const fetchDramaData = useCallback(async (targetBookId) => {
     setIsLoading(true);
@@ -585,42 +407,8 @@ export default function Player() {
     }
   }, []);
 
-  // Fungsi verifikasi password
-  const verifyPassword = useCallback(async (password) => {
-    setIsVerifyingPassword(true);
-    
-    // Simulasi proses verifikasi
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    if (password === VALID_PASSWORD) {
-      setIsAuthenticated(true);
-      setIsVerifyingPassword(false);
-      setPasswordModal(prev => ({ ...prev, open: false }));
-      return true;
-    } else {
-      setIsVerifyingPassword(false);
-      alert('❌ Password salah! Silakan coba lagi.');
-      return false;
-    }
-  }, []);
-
-  // Fungsi untuk membuka modal password
-  const openPasswordModal = useCallback((type, episode = null, bots = null) => {
-    setPasswordModal({
-      open: true,
-      type,
-      episode,
-      bots
-    });
-  }, []);
-
-  // Fungsi untuk mengirim ke Telegram setelah authentication
+  // Fungsi untuk mengirim ke Telegram - FIXED VERSION
   const sendToTelegram = useCallback(async (bots, episode) => {
-    if (!isAuthenticated) {
-      openPasswordModal('single', episode, bots);
-      return;
-    }
-
     setIsSendingTelegram(true);
     
     try {
@@ -632,15 +420,6 @@ export default function Player() {
         try {
           console.log('🔄 Mengirim ke:', bot.name);
           
-          // Gunakan token dari environment variable atau fallback
-          const botToken = bot.token.replace('***SENSORED***', 
-            process.env.REACT_APP_TELEGRAM_BOT_TOKEN_1 || '8433377632:AAFjurpcQXQtiG7B8c6GyGXEKw5mjN-Vu0A'
-          );
-          
-          const chatId = bot.chatId.replace('***SENSORED***',
-            process.env.REACT_APP_TELEGRAM_CHAT_ID_1 || '5451748453'
-          );
-
           // Encode message untuk URL
           const message = encodeURIComponent(
             `🎬 *${dramaData.info?.title || 'Drama'}*\n\n` +
@@ -649,11 +428,13 @@ export default function Player() {
             `_Dikirim otomatis dari DramaStream_`
           );
           
-          // Gunakan URL-based approach
-          const telegramUrl = `https://api.telegram.org/bot${botToken}/sendMessage?chat_id=${chatId}&text=${message}&parse_mode=Markdown`;
+          // Gunakan URL-based approach (lebih reliable)
+          const telegramUrl = `https://api.telegram.org/bot${bot.token}/sendMessage?chat_id=${bot.chatId}&text=${message}&parse_mode=Markdown`;
+          
+          console.log('📡 URL:', telegramUrl.substring(0, 100) + '...');
           
           const response = await fetch(telegramUrl, {
-            method: 'GET',
+            method: 'GET', // Gunakan GET untuk avoid CORS issues
             headers: {
               'Content-Type': 'application/json',
             }
@@ -664,6 +445,7 @@ export default function Player() {
           }
           
           const result = await response.json();
+          console.log('📨 Response:', result);
           
           if (result.ok) {
             successCount++;
@@ -689,6 +471,20 @@ export default function Player() {
             success: false,
             message: err.message || 'Network error'
           });
+          
+          // Fallback: Buka tab baru
+          try {
+            const fallbackMessage = encodeURIComponent(
+              `🎬 ${dramaData.info?.title || 'Drama'}\n\n` +
+              `📺 Episode: ${episode.title}\n` +
+              `🔗 URL: ${episode.url}\n\n` +
+              `Dikirim otomatis dari DramaStream`
+            );
+            const fallbackUrl = `https://api.telegram.org/bot${bot.token}/sendMessage?chat_id=${bot.chatId}&text=${fallbackMessage}`;
+            window.open(fallbackUrl, '_blank');
+          } catch (fallbackErr) {
+            console.error('Fallback juga gagal:', fallbackErr);
+          }
         }
         
         // Delay untuk hindari rate limit
@@ -712,70 +508,29 @@ export default function Player() {
       setIsSendingTelegram(false);
       setTelegramModal({ open: false, episode: null });
     }
-  }, [dramaData.info, isAuthenticated, openPasswordModal]);
+  }, [dramaData.info]);
 
-  // Fungsi untuk mengirim semua episode SATU PER SATU
+  // Fungsi untuk mengirim semua episode
   const sendAllToTelegram = useCallback(async (bots) => {
-    if (!isAuthenticated) {
-      openPasswordModal('all', null, bots);
-      return;
-    }
-
     setIsSendingTelegram(true);
-    isCancelledRef.current = false;
     
-    const episodesWithUrl = dramaData.episodes.filter(ep => ep.url);
-    
-    if (episodesWithUrl.length === 0) {
-      alert('❌ Tidak ada episode yang dapat dikirim');
-      return;
-    }
-
-    // Buka progress modal
-    setProgressModal({
-      open: true,
-      current: 0,
-      total: episodesWithUrl.length,
-      currentEpisode: null,
-      successCount: 0,
-      failedCount: 0
-    });
-
-    let totalSuccess = 0;
-    let totalFailed = 0;
-
     try {
+      const episodesWithUrl = dramaData.episodes.filter(ep => ep.url);
+      let totalSuccess = 0;
+      let totalFailed = 0;
+      
+      if (episodesWithUrl.length === 0) {
+        alert('❌ Tidak ada episode yang dapat dikirim');
+        return;
+      }
+      
+      alert(`🚀 Memulai pengiriman ${episodesWithUrl.length} episode...`);
+      
       for (let i = 0; i < episodesWithUrl.length; i++) {
-        // Check jika proses dibatalkan
-        if (isCancelledRef.current) {
-          console.log('🚫 Proses dibatalkan oleh user');
-          break;
-        }
-
         const episode = episodesWithUrl[i];
         
-        // Update progress modal
-        setProgressModal(prev => ({
-          ...prev,
-          current: i + 1,
-          currentEpisode: episode,
-          successCount: totalSuccess,
-          failedCount: totalFailed
-        }));
-
-        let episodeSuccess = false;
-
         for (const bot of bots) {
           try {
-            // Gunakan token dari environment variable atau fallback
-            const botToken = bot.token.replace('***SENSORED***', 
-              process.env.REACT_APP_TELEGRAM_BOT_TOKEN_1 || '8433377632:AAFjurpcQXQtiG7B8c6GyGXEKw5mjN-Vu0A'
-            );
-            
-            const chatId = bot.chatId.replace('***SENSORED***',
-              process.env.REACT_APP_TELEGRAM_CHAT_ID_1 || '5451748453'
-            );
-
             const message = encodeURIComponent(
               `🎬 *${dramaData.info?.title || 'Drama'}*\n\n` +
               `📺 *Episode:* ${episode.title}\n` +
@@ -783,9 +538,7 @@ export default function Player() {
               `_Dikirim otomatis dari DramaStream_`
             );
             
-            const telegramUrl = `https://api.telegram.org/bot${botToken}/sendMessage?chat_id=${chatId}&text=${message}&parse_mode=Markdown`;
-            
-            console.log(`📤 Mengirim episode ${i + 1}/${episodesWithUrl.length}: ${episode.title}`);
+            const telegramUrl = `https://api.telegram.org/bot${bot.token}/sendMessage?chat_id=${bot.chatId}&text=${message}&parse_mode=Markdown`;
             
             const response = await fetch(telegramUrl, {
               method: 'GET',
@@ -795,73 +548,36 @@ export default function Player() {
             });
             
             if (response.ok) {
-              episodeSuccess = true;
-              console.log(`✅ Berhasil: ${episode.title}`);
+              totalSuccess++;
             } else {
-              console.log(`❌ Gagal: ${episode.title}`);
+              totalFailed++;
             }
             
-            // Random delay antara 3-5 detik untuk hindari spam detection
-            const randomDelay = 3000 + Math.random() * 2000; // 3-5 detik
-            await new Promise(resolve => setTimeout(resolve, randomDelay));
+            // Delay lebih lama untuk bulk sending
+            await new Promise(resolve => setTimeout(resolve, 2000));
             
           } catch (err) {
-            console.error(`💥 Error mengirim ${episode.title}:`, err);
+            totalFailed++;
+            console.error(`Gagal mengirim ${episode.title} ke ${bot.name}:`, err);
           }
         }
-
-        if (episodeSuccess) {
-          totalSuccess++;
-        } else {
-          totalFailed++;
+        
+        // Update progress setiap 5 episode
+        if ((i + 1) % 5 === 0) {
+          console.log(`📊 Progress: ${i + 1}/${episodesWithUrl.length} episode`);
         }
-
-        // Update progress counts
-        setProgressModal(prev => ({
-          ...prev,
-          successCount: totalSuccess,
-          failedCount: totalFailed
-        }));
       }
       
-      // Tampilkan hasil akhir
-      if (!isCancelledRef.current) {
-        alert(`📊 Pengiriman selesai!\n✅ Berhasil: ${totalSuccess}\n❌ Gagal: ${totalFailed}`);
-      } else {
-        alert(`⏹️ Pengiriman dibatalkan!\n✅ Berhasil: ${totalSuccess}\n❌ Gagal: ${totalFailed}`);
-      }
+      alert(`📊 Pengiriman selesai!\n✅ Berhasil: ${totalSuccess}\n❌ Gagal: ${totalFailed}`);
       
     } catch (err) {
       console.error('💥 Error mengirim semua episode:', err);
-      if (!isCancelledRef.current) {
-        alert('❌ Gagal mengirim episode: ' + err.message);
-      }
+      alert('❌ Gagal mengirim episode: ' + err.message);
     } finally {
       setIsSendingTelegram(false);
-      setProgressModal(prev => ({ ...prev, open: false }));
       setTelegramAllModal({ open: false });
-      isCancelledRef.current = false;
     }
-  }, [dramaData.episodes, dramaData.info, isAuthenticated, openPasswordModal]);
-
-  // Fungsi untuk membatalkan proses
-  const cancelSending = useCallback(() => {
-    isCancelledRef.current = true;
-    setProgressModal(prev => ({ ...prev, open: false }));
-    setIsSendingTelegram(false);
-    alert('⏹️ Proses pengiriman dibatalkan');
-  }, []);
-
-  // Handle setelah password berhasil diverifikasi
-  useEffect(() => {
-    if (isAuthenticated && passwordModal.open) {
-      if (passwordModal.type === 'single' && passwordModal.episode && passwordModal.bots) {
-        sendToTelegram(passwordModal.bots, passwordModal.episode);
-      } else if (passwordModal.type === 'all' && passwordModal.bots) {
-        sendAllToTelegram(passwordModal.bots);
-      }
-    }
-  }, [isAuthenticated, passwordModal, sendToTelegram, sendAllToTelegram]);
+  }, [dramaData.episodes, dramaData.info]);
 
   const handleDownloadEpisode = useCallback(async (episode) => {
     if (!episode?.url) {
@@ -1170,25 +886,6 @@ export default function Player() {
         </div>
       </div>
 
-      {/* Progress Modal */}
-      <ProgressModal
-        isOpen={progressModal.open}
-        current={progressModal.current}
-        total={progressModal.total}
-        currentEpisode={progressModal.currentEpisode}
-        successCount={progressModal.successCount}
-        failedCount={progressModal.failedCount}
-        onCancel={cancelSending}
-      />
-
-      {/* Password Modal */}
-      <PasswordModal
-        isOpen={passwordModal.open}
-        onClose={() => setPasswordModal({ open: false, type: null, episode: null, bots: null })}
-        onVerify={verifyPassword}
-        isVerifying={isVerifyingPassword}
-      />
-
       {/* Modal Telegram untuk Single Episode */}
       <TelegramModal
         isOpen={telegramModal.open}
@@ -1216,7 +913,7 @@ export default function Player() {
       )}
 
       {/* Telegram Sending Indicator */}
-      {isSendingTelegram && !progressModal.open && (
+      {isSendingTelegram && (
         <div className="fixed bottom-4 left-4 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2">
           <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
           Mengirim ke Telegram...
