@@ -6,7 +6,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 const PASSWORD_CONFIG = {
     // Multiple passwords yang valid (bisa diubah di .env)
     VALID_PASSWORDS: process.env.REACT_APP_VALID_PASSWORDS 
-        ? process.env.REACT_APP_VALID_PASSWORTS.split(',') 
+        ? process.env.REACT_APP_VALID_PASSWORDS.split(',') 
         : ['drama2024', 'stream123', 'secretpass'],
     
     // Maximum attempts sebelum diblokir
@@ -205,11 +205,11 @@ const PasswordModal = ({ isOpen, onClose, onSuccess, remainingAttempts }) => {
                 
                 <div className="bg-yellow-900 border border-yellow-700 rounded p-3 mb-4">
                     <p className="text-yellow-200 text-sm">
-        🔒 Fitur ini membutuhkan password. 
-        {remainingAttempts > 0 && (
-            <span className="font-semibold"> Percobaan tersisa: {PASSWORD_CONFIG.MAX_ATTEMPTS - remainingAttempts}</span>
-        )}
-    </p>
+                        🔒 Fitur ini membutuhkan password. 
+                        {remainingAttempts > 0 && (
+                            <span className="font-semibold"> Percobaan tersisa: {PASSWORD_CONFIG.MAX_ATTEMPTS - remainingAttempts}</span>
+                        )}
+                    </p>
                 </div>
 
                 <form onSubmit={handleSubmit}>
@@ -460,7 +460,7 @@ const CopyLinksBox = ({ episodes }) => {
     );
 };
 
-// Custom hook untuk fetch data drama (tetap sama)
+// Custom hook untuk fetch data drama
 const useDramaData = (bookId, locationState) => {
     const [state, setState] = useState({
         dramaInfo: null,
@@ -577,7 +577,7 @@ const useDramaData = (bookId, locationState) => {
     return state;
 };
 
-// Komponen Header (tetap sama)
+// Komponen Header
 const Header = ({ onBack, title, isError = false }) => (
     <div className="flex justify-between items-center mb-6">
         <h1 className={`text-xl md:text-2xl font-bold truncate max-w-[70%] ${
@@ -594,7 +594,7 @@ const Header = ({ onBack, title, isError = false }) => (
     </div>
 );
 
-// Komponen Video Player (tetap sama)
+// Komponen Video Player
 const VideoPlayer = ({ currentEpisode, videoRef, onEnded, onError }) => (
     <div className="bg-black mb-6 rounded-lg overflow-hidden flex justify-center">
         {currentEpisode.url ? (
@@ -625,7 +625,7 @@ const VideoPlayer = ({ currentEpisode, videoRef, onEnded, onError }) => (
     </div>
 );
 
-// Komponen Episode Button (tetap sama)
+// Komponen Episode Button
 const EpisodeButton = ({ episode, isCurrent, onClick }) => (
     <button
         onClick={() => onClick(episode)}
@@ -652,11 +652,10 @@ export default function Player() {
     const { bookId } = useParams();
     const videoRef = useRef(null);
     
-    // Check jika user diblokir
-    if (securityService.isUserBlocked()) {
-        return <BlockedScreen />;
-    }
+    // Check jika user diblokir - harus dipanggil sebelum hooks lainnya
+    const isBlocked = securityService.isUserBlocked();
     
+    // Pindahkan semua hooks ke atas, sebelum conditional return
     const { dramaInfo, episodes, currentEpisode, isLoading, error } = 
         useDramaData(bookId, location.state);
 
@@ -698,6 +697,12 @@ export default function Player() {
         }
     }, [currentEpisode]);
 
+    // Return BlockedScreen di awal, sebelum menggunakan data hooks
+    if (isBlocked) {
+        return <BlockedScreen />;
+    }
+
+    // Kemudian return states lainnya
     if (isLoading) {
         return (
             <div className="bg-gray-900 min-h-screen text-white">
