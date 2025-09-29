@@ -150,7 +150,7 @@ export default function Player() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [tooltip, setTooltip] = useState({ show: false, content: '', x: 0, y: 0 });
-  const [isDownloading, setIsDownloading] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false); // Fixed variable name
 
   // Cleanup effect untuk mencegah memory leaks
   useEffect(() => {
@@ -249,7 +249,7 @@ export default function Player() {
       console.error("Gagal mengunduh:", err);
       alert("Gagal mengunduh video. Silakan coba lagi.");
     } finally {
-      setIsDownloadting(false);
+      setIsDownloading(false); // Fixed: changed from setIsDownloadting to setIsDownloading
     }
   }, [dramaData.info]);
 
