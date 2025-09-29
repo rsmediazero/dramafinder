@@ -1,7 +1,6 @@
 // src/App.js
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { DisableDevTools } from "@/lib/disableDevTools";
 
 // --- Komponen Individual ---
 const LoadingSpinner = () => ( <div className="flex justify-center items-center p-8"><div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500"></div></div> );
@@ -175,9 +174,6 @@ const handleSelectDrama = useCallback(async (drama) => {
     // --- RENDER ---
     return (
         <div className="bg-gray-900 min-h-screen text-white font-sans">
-            {/* Security Component */}
-            <DisableDevTools />
-            
             {isNavigating && (
             <div className="fixed inset-0 bg-black/70 flex justify-center items-center z-50">
                 <div className="flex flex-col items-center">

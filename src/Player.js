@@ -1,7 +1,6 @@
 // src/Player.js
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { DisableDevTools } from "disableDevTools.js";
 
 // Password configuration - bisa dipindah ke .env file
 const PASSWORD_CONFIG = {
@@ -671,7 +670,7 @@ const EpisodeButton = ({ episode, isCurrent, onClick }) => (
     </button>
 );
 
-// Main Player Component dengan Security
+// Main Player Component
 export default function Player() {
     const location = useLocation();
     const navigate = useNavigate();
@@ -767,9 +766,6 @@ export default function Player() {
 
     return (
         <div className="bg-gray-900 min-h-screen text-white p-4 md:p-8">
-            {/* Security Component */}
-            <DisableDevTools />
-            
             <div className="max-w-4xl mx-auto">
                 <Header 
                     onBack={() => navigate('/')} 
