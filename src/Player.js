@@ -29,7 +29,7 @@ class SecurityService {
         if (!blockedData) return false;
 
         try {
-            const { timestamp, userAgent } = JSON.parse(blockedData);
+            const { timestamp } = JSON.parse(blockedData);
             const now = Date.now();
             
             // Jika masih dalam periode blokir
@@ -52,13 +52,13 @@ class SecurityService {
         const blockData = {
             timestamp: Date.now(),
             userAgent: navigator.userAgent,
-            ip: 'unknown' // Note: Di production, dapatkan IP dari backend
+            ip: 'unknown'
         };
         
         localStorage.setItem(this.blockedKey, JSON.stringify(blockData));
         console.log(`[SECURITY] User diblokir: ${navigator.userAgent}`);
         
-        // Log ke console untuk monitoring (di production kirim ke server)
+        // Log ke console untuk monitoring
         this.logSecurityEvent('USER_BLOCKED', blockData);
     }
 
@@ -98,14 +98,23 @@ class SecurityService {
             ...data
         };
         console.log('[SECURITY EVENT]:', log);
-        
-        // Di production, kirim log ini ke security service/backend
-        // fetch('/api/security/log', { method: 'POST', body: JSON.stringify(log) });
     }
 
     // Validate password
     validatePassword(inputPassword) {
         return PASSWORD_CONFIG.VALID_PASSWORDS.includes(inputPassword.trim());
+    }
+
+    // Get blocked user info
+    getBlockedUserInfo() {
+        const blockedData = localStorage.getItem(this.blockedKey);
+        if (!blockedData) return null;
+        
+        try {
+            return JSON.parse(blockedData);
+        } catch (error) {
+            return null;
+        }
     }
 }
 
@@ -267,7 +276,20 @@ const PasswordModal = ({ isOpen, onClose, onSuccess, remainingAttempts }) => {
 
 // Blocked Screen Component
 const BlockedScreen = () => {
-    const blockedData = JSON.parse(localStorage.getItem('drama_player_blocked') || '{}');
+    const blockedData = securityService.getBlockedUserInfo();
+    
+    if (!blockedData) {
+        return (
+            <div className="bg-gray-900 min-h-screen text-white flex items-center justify-center p-4">
+                <div className="bg-gray-800 rounded-lg p-8 max-w-md w-full text-center">
+                    <div className="text-6xl mb-4">❓</div>
+                    <h1 className="text-2xl font-bold text-yellow-400 mb-4">Data Blokir Tidak Ditemukan</h1>
+                    <p className="text-gray-300">Coba refresh halaman atau hubungi administrator.</p>
+                </div>
+            </div>
+        );
+    }
+
     const blockTime = new Date(blockedData.timestamp);
     const unblockTime = new Date(blockedData.timestamp + PASSWORD_CONFIG.BLOCK_DURATION);
 
@@ -281,7 +303,7 @@ const BlockedScreen = () => {
                         Anda telah melebihi batas percobaan password yang diperbolehkan.
                     </p>
                 </div>
-                <div className="text-gray-300 text-sm space-y-2">
+                <div className="text-gray-300 text-sm space-y-2 mb-4">
                     <p><strong>Waktu Blokir:</strong> {blockTime.toLocaleString('id-ID')}</p>
                     <p><strong>Buka Blokir:</strong> {unblockTime.toLocaleString('id-ID')}</p>
                     <p><strong>Durasi:</strong> 24 Jam</p>
@@ -289,6 +311,9 @@ const BlockedScreen = () => {
                 <div className="mt-6 p-4 bg-gray-700 rounded text-xs text-gray-400">
                     <p><strong>Catatan Keamanan:</strong></p>
                     <p>Akses Anda telah dicatat untuk alasan keamanan.</p>
+                    <p className="mt-2 text-xs break-all">
+                        <strong>User Agent:</strong> {blockedData.userAgent}
+                    </p>
                 </div>
             </div>
         </div>
