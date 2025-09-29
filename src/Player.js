@@ -1,5 +1,5 @@
 // src/Player.js
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation, Link, useNavigate, useParams } from 'react-router-dom';
 
 // Komponen dipisahkan untuk better organization
@@ -99,9 +99,7 @@ const EpisodeButton = ({
   episode, 
   isCurrent, 
   onSelect, 
-  onDownload,
-  onShowTooltip,
-  onHideTooltip 
+  onDownload
 }) => {
   const handleClick = () => {
     if (episode.url) {
@@ -114,8 +112,6 @@ const EpisodeButton = ({
       <button
         onClick={handleClick}
         disabled={!episode.url}
-        onMouseEnter={(e) => onShowTooltip(e, episode)}
-        onMouseLeave={onHideTooltip}
         className={`w-full p-2 rounded text-center transition-colors text-xs episode-button ${
           isCurrent
             ? 'bg-red-600 font-bold text-white'
@@ -123,6 +119,7 @@ const EpisodeButton = ({
             ? 'bg-gray-700 hover:bg-gray-600 text-white'
             : 'bg-gray-800 text-gray-500 cursor-not-allowed'
         }`}
+        title={episode.title}
       >
         {episode.title.replace('EP ', '')}
       </button>
@@ -149,18 +146,7 @@ export default function Player() {
   const [dramaData, setDramaData] = useState({ info: null, episodes: [] });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [tooltip, setTooltip] = useState({ show: false, content: '', x: 0, y: 0 });
-  const [isDownloading, setIsDownloading] = useState(false); // Fixed variable name
-
-  // Cleanup effect untuk mencegah memory leaks
-  useEffect(() => {
-    return () => {
-      // Cleanup tooltip timeout jika ada
-      if (tooltip.timeoutId) {
-        clearTimeout(tooltip.timeoutId);
-      }
-    };
-  }, []);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const fetchDramaData = useCallback(async (targetBookId) => {
     setIsLoading(true);
@@ -197,28 +183,6 @@ export default function Player() {
     }
   }, []);
 
-  const showTooltip = useCallback((e, episode) => {
-    const timeoutId = setTimeout(() => {
-      setTooltip({
-        show: true,
-        content: `${episode.title} - Klik untuk nonton, klik 📥 untuk download`,
-        x: e.clientX,
-        y: e.clientY - 40
-      });
-    }, 300); // Delay untuk mencegah tooltip muncul secara accidental
-
-    setTooltip(prev => ({ ...prev, timeoutId }));
-  }, []);
-
-  const hideTooltip = useCallback(() => {
-    setTooltip(prev => {
-      if (prev.timeoutId) {
-        clearTimeout(prev.timeoutId);
-      }
-      return { show: false, content: '', x: 0, y: 0 };
-    });
-  }, []);
-
   const handleDownloadEpisode = useCallback(async (episode) => {
     if (!episode.url) {
       alert("URL download tidak tersedia untuk episode ini.");
@@ -249,7 +213,7 @@ export default function Player() {
       console.error("Gagal mengunduh:", err);
       alert("Gagal mengunduh video. Silakan coba lagi.");
     } finally {
-      setIsDownloading(false); // Fixed: changed from setIsDownloadting to setIsDownloading
+      setIsDownloading(false);
     }
   }, [dramaData.info]);
 
@@ -450,28 +414,11 @@ export default function Player() {
                 isCurrent={currentEpisode.episodeNumber === ep.episodeNumber}
                 onSelect={handleEpisodeChange}
                 onDownload={handleDownloadEpisode}
-                onShowTooltip={showTooltip}
-                onHideTooltip={hideTooltip}
               />
             ))}
           </div>
         </div>
       </div>
-
-      {/* Tooltip */}
-      {tooltip.show && (
-        <div
-          className="fixed bg-gray-800 text-white text-xs px-3 py-2 rounded-lg z-50 pointer-events-none shadow-lg border border-gray-600 tooltip-custom max-w-xs"
-          style={{ 
-            left: tooltip.x, 
-            top: tooltip.y, 
-            transform: 'translateX(-50%)' 
-          }}
-        >
-          {tooltip.content}
-          <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent border-t-gray-800" />
-        </div>
-      )}
 
       {/* Downloading Indicator */}
       {isDownloading && (
