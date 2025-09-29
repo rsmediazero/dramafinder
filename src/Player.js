@@ -1,8 +1,6 @@
 // src/Player.js
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { AnalyticsTracker } from "@/lib/analyticsTracker";
-import { Suspense } from "react";
 import { DisableDevTools } from "@/lib/disableDevTools";
 
 // Password configuration - bisa dipindah ke .env file
@@ -63,14 +61,6 @@ class SecurityService {
         
         // Log ke console untuk monitoring
         this.logSecurityEvent('USER_BLOCKED', blockData);
-        
-        // Track analytics event
-        if (typeof window !== 'undefined' && window.gtag) {
-            window.gtag('event', 'user_blocked', {
-                user_agent: navigator.userAgent,
-                reason: 'password_attempts_exceeded'
-            });
-        }
     }
 
     // Clear block
@@ -93,26 +83,11 @@ class SecurityService {
             userAgent: navigator.userAgent
         };
         localStorage.setItem(this.storageKey, JSON.stringify(attemptData));
-        
-        // Track analytics event untuk failed attempt
-        if (typeof window !== 'undefined' && window.gtag) {
-            window.gtag('event', 'password_attempt', {
-                attempts: attempts,
-                user_agent: navigator.userAgent
-            });
-        }
     }
 
     // Reset attempt data
     resetAttemptData() {
         localStorage.removeItem(this.storageKey);
-        
-        // Track analytics event untuk successful login
-        if (typeof window !== 'undefined' && window.gtag) {
-            window.gtag('event', 'password_success', {
-                user_agent: navigator.userAgent
-            });
-        }
     }
 
     // Log security events
@@ -418,14 +393,6 @@ const CopyLinksBox = ({ episodes }) => {
             await navigator.clipboard.writeText(formattedLinks);
             setIsCopied(true);
             
-            // Track analytics event untuk copy links
-            if (typeof window !== 'undefined' && window.gtag) {
-                window.gtag('event', 'copy_all_links', {
-                    episode_count: validEpisodes.length,
-                    total_episodes: episodes.length
-                });
-            }
-            
             // Reset status copied setelah 3 detik
             setTimeout(() => setIsCopied(false), 3000);
         } catch (err) {
@@ -704,7 +671,7 @@ const EpisodeButton = ({ episode, isCurrent, onClick }) => (
     </button>
 );
 
-// Main Player Component dengan Analytics dan Security
+// Main Player Component dengan Security
 export default function Player() {
     const location = useLocation();
     const navigate = useNavigate();
@@ -728,19 +695,10 @@ export default function Player() {
     const handleEpisodeChange = useCallback((episode) => {
         if (episode.url) {
             window.scrollTo({ top: 0, behavior: 'smooth' });
-            
-            // Track analytics event untuk episode change
-            if (typeof window !== 'undefined' && window.gtag) {
-                window.gtag('event', 'episode_change', {
-                    episode_number: episode.episodeNumber,
-                    episode_title: episode.title,
-                    drama_title: dramaInfo?.title
-                });
-            }
         } else {
             alert("Episode ini tidak memiliki URL yang valid");
         }
-    }, [dramaInfo]);
+    }, []);
 
     const handleVideoEnded = useCallback(() => {
         if (!currentEpisode || !episodes || episodes.length === 0) return;
@@ -752,19 +710,9 @@ export default function Player() {
         if (currentIndex > -1 && currentIndex < episodes.length - 1) {
             const nextEpisode = episodes[currentIndex + 1];
             console.log(`[LOG] Auto-play episode: ${nextEpisode.title}`);
-            
-            // Track analytics event untuk auto-play
-            if (typeof window !== 'undefined' && window.gtag) {
-                window.gtag('event', 'auto_play_next', {
-                    current_episode: currentEpisode.episodeNumber,
-                    next_episode: nextEpisode.episodeNumber,
-                    drama_title: dramaInfo?.title
-                });
-            }
-            
             handleEpisodeChange(nextEpisode);
         }
-    }, [currentEpisode, episodes, handleEpisodeChange, dramaInfo]);
+    }, [currentEpisode, episodes, handleEpisodeChange]);
 
     useEffect(() => {
         if (videoRef.current && currentEpisode?.url) {
@@ -773,15 +721,7 @@ export default function Player() {
                 console.log("Autoplay prevented:", e);
             });
         }
-        
-        // Track page view ketika komponen dimount
-        if (typeof window !== 'undefined' && window.gtag && dramaInfo) {
-            window.gtag('event', 'page_view', {
-                page_title: dramaInfo.title,
-                page_location: window.location.href
-            });
-        }
-    }, [currentEpisode, dramaInfo]);
+    }, [currentEpisode]);
 
     // Return BlockedScreen di awal, sebelum menggunakan data hooks
     if (isBlocked) {
@@ -827,11 +767,8 @@ export default function Player() {
 
     return (
         <div className="bg-gray-900 min-h-screen text-white p-4 md:p-8">
-            {/* Analytics dan Security Components */}
-            <Suspense fallback={null}>
-                <AnalyticsTracker />
-                <DisableDevTools />
-            </Suspense>
+            {/* Security Component */}
+            <DisableDevTools />
             
             <div className="max-w-4xl mx-auto">
                 <Header 
