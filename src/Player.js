@@ -2,6 +2,116 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
+// Password configuration - bisa dipindah ke .env file
+const PASSWORD_CONFIG = {
+    // Multiple passwords yang valid (bisa diubah di .env)
+    VALID_PASSWORDS: process.env.REACT_APP_VALID_PASSWORDS 
+        ? process.env.REACT_APP_VALID_PASSWORTS.split(',') 
+        : ['drama2024', 'stream123', 'secretpass'],
+    
+    // Maximum attempts sebelum diblokir
+    MAX_ATTEMPTS: 3,
+    
+    // Block duration in milliseconds (24 jam)
+    BLOCK_DURATION: 24 * 60 * 60 * 1000
+};
+
+// Security Service untuk handle blocking
+class SecurityService {
+    constructor() {
+        this.storageKey = 'drama_player_security';
+        this.blockedKey = 'drama_player_blocked';
+    }
+
+    // Check jika user sudah diblokir
+    isUserBlocked() {
+        const blockedData = localStorage.getItem(this.blockedKey);
+        if (!blockedData) return false;
+
+        try {
+            const { timestamp, userAgent } = JSON.parse(blockedData);
+            const now = Date.now();
+            
+            // Jika masih dalam periode blokir
+            if (now - timestamp < PASSWORD_CONFIG.BLOCK_DURATION) {
+                console.log(`[SECURITY] User masih diblokir sampai: ${new Date(timestamp + PASSWORD_CONFIG.BLOCK_DURATION)}`);
+                return true;
+            } else {
+                // Hapus blokir jika sudah expired
+                this.clearBlock();
+                return false;
+            }
+        } catch (error) {
+            this.clearBlock();
+            return false;
+        }
+    }
+
+    // Block user
+    blockUser() {
+        const blockData = {
+            timestamp: Date.now(),
+            userAgent: navigator.userAgent,
+            ip: 'unknown' // Note: Di production, dapatkan IP dari backend
+        };
+        
+        localStorage.setItem(this.blockedKey, JSON.stringify(blockData));
+        console.log(`[SECURITY] User diblokir: ${navigator.userAgent}`);
+        
+        // Log ke console untuk monitoring (di production kirim ke server)
+        this.logSecurityEvent('USER_BLOCKED', blockData);
+    }
+
+    // Clear block
+    clearBlock() {
+        localStorage.removeItem(this.blockedKey);
+        localStorage.removeItem(this.storageKey);
+    }
+
+    // Get attempt data
+    getAttemptData() {
+        const data = localStorage.getItem(this.storageKey);
+        return data ? JSON.parse(data) : { attempts: 0, lastAttempt: 0 };
+    }
+
+    // Update attempt data
+    updateAttemptData(attempts) {
+        const attemptData = {
+            attempts,
+            lastAttempt: Date.now(),
+            userAgent: navigator.userAgent
+        };
+        localStorage.setItem(this.storageKey, JSON.stringify(attemptData));
+    }
+
+    // Reset attempt data
+    resetAttemptData() {
+        localStorage.removeItem(this.storageKey);
+    }
+
+    // Log security events
+    logSecurityEvent(eventType, data) {
+        const log = {
+            event: eventType,
+            timestamp: new Date().toISOString(),
+            userAgent: navigator.userAgent,
+            ...data
+        };
+        console.log('[SECURITY EVENT]:', log);
+        
+        // Di production, kirim log ini ke security service/backend
+        // fetch('/api/security/log', { method: 'POST', body: JSON.stringify(log) });
+    }
+
+    // Validate password
+    validatePassword(inputPassword) {
+        return PASSWORD_CONFIG.VALID_PASSWORDS.includes(inputPassword.trim());
+    }
+}
+
+// Initialize security service
+const securityService = new SecurityService();
+
 const LoadingSpinner = () => (
     <div className="flex justify-center items-center h-64">
         <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-red-600"></div>
@@ -32,7 +142,325 @@ const ErrorMessage = ({ message, onRetry }) => (
     </div>
 );
 
-// Custom hook untuk fetch data drama
+// Komponen Password Modal
+const PasswordModal = ({ isOpen, onClose, onSuccess, remainingAttempts }) => {
+    const [password, setPassword] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState('');
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        if (!password.trim()) {
+            setError('Password tidak boleh kosong');
+            return;
+        }
+
+        setIsLoading(true);
+        setError('');
+
+        // Simulate API call delay
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        try {
+            const isValid = securityService.validatePassword(password);
+            
+            if (isValid) {
+                securityService.resetAttemptData();
+                onSuccess();
+                setPassword('');
+            } else {
+                const currentAttempts = securityService.getAttemptData().attempts + 1;
+                securityService.updateAttemptData(currentAttempts);
+                
+                if (currentAttempts >= PASSWORD_CONFIG.MAX_ATTEMPTS) {
+                    securityService.blockUser();
+                    window.location.reload(); // Reload untuk trigger block screen
+                    return;
+                }
+                
+                setError(`Password salah! Percobaan ${currentAttempts} dari ${PASSWORD_CONFIG.MAX_ATTEMPTS}`);
+                setPassword('');
+            }
+        } catch (err) {
+            setError('Terjadi kesalahan sistem');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+            <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md">
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-bold text-white">Akses Diperlukan</h3>
+                    <button
+                        onClick={onClose}
+                        className="text-gray-400 hover:text-white text-xl"
+                    >
+                        ×
+                    </button>
+                </div>
+                
+                <div className="bg-yellow-900 border border-yellow-700 rounded p-3 mb-4">
+                    <p className="text-yellow-200 text-sm">
+        🔒 Fitur ini membutuhkan password. 
+        {remainingAttempts > 0 && (
+            <span className="font-semibold"> Percobaan tersisa: {PASSWORD_CONFIG.MAX_ATTEMPTS - remainingAttempts}</span>
+        )}
+    </p>
+                </div>
+
+                <form onSubmit={handleSubmit}>
+                    <div className="mb-4">
+                        <label className="block text-gray-300 text-sm font-medium mb-2">
+                            Masukkan Password:
+                        </label>
+                        <input
+                            type="password"
+                            value={password}
+                            onChange={(e) => {
+                                setPassword(e.target.value);
+                                setError('');
+                            }}
+                            className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-red-500"
+                            placeholder="Ketik password di sini..."
+                            autoFocus
+                        />
+                    </div>
+
+                    {error && (
+                        <div className="bg-red-900 border border-red-700 rounded p-3 mb-4">
+                            <p className="text-red-200 text-sm">{error}</p>
+                        </div>
+                    )}
+
+                    <div className="flex gap-2 justify-end">
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
+                        >
+                            Batal
+                        </button>
+                        <button
+                            type="submit"
+                            disabled={isLoading || !password.trim()}
+                            className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-600 text-white rounded-lg transition-colors flex items-center gap-2"
+                        >
+                            {isLoading ? (
+                                <>
+                                    <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                                    Memverifikasi...
+                                </>
+                            ) : (
+                                'Masuk'
+                            )}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
+
+// Blocked Screen Component
+const BlockedScreen = () => {
+    const blockedData = JSON.parse(localStorage.getItem('drama_player_blocked') || '{}');
+    const blockTime = new Date(blockedData.timestamp);
+    const unblockTime = new Date(blockedData.timestamp + PASSWORD_CONFIG.BLOCK_DURATION);
+
+    return (
+        <div className="bg-gray-900 min-h-screen text-white flex items-center justify-center p-4">
+            <div className="bg-gray-800 rounded-lg p-8 max-w-md w-full text-center">
+                <div className="text-6xl mb-4">🚫</div>
+                <h1 className="text-2xl font-bold text-red-400 mb-4">Akses Diblokir</h1>
+                <div className="bg-red-900 border border-red-700 rounded p-4 mb-4">
+                    <p className="text-red-200">
+                        Anda telah melebihi batas percobaan password yang diperbolehkan.
+                    </p>
+                </div>
+                <div className="text-gray-300 text-sm space-y-2">
+                    <p><strong>Waktu Blokir:</strong> {blockTime.toLocaleString('id-ID')}</p>
+                    <p><strong>Buka Blokir:</strong> {unblockTime.toLocaleString('id-ID')}</p>
+                    <p><strong>Durasi:</strong> 24 Jam</p>
+                </div>
+                <div className="mt-6 p-4 bg-gray-700 rounded text-xs text-gray-400">
+                    <p><strong>Catatan Keamanan:</strong></p>
+                    <p>Akses Anda telah dicatat untuk alasan keamanan.</p>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// Custom hook untuk security state
+const useSecurity = () => {
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const [showPasswordModal, setShowPasswordModal] = useState(false);
+    const [remainingAttempts, setRemainingAttempts] = useState(PASSWORD_CONFIG.MAX_ATTEMPTS);
+
+    useEffect(() => {
+        // Check jika user sudah diblokir
+        if (securityService.isUserBlocked()) {
+            return;
+        }
+
+        // Load attempt data
+        const attemptData = securityService.getAttemptData();
+        setRemainingAttempts(attemptData.attempts);
+    }, []);
+
+    const requireAuth = () => {
+        if (isAuthenticated) return true;
+        
+        setShowPasswordModal(true);
+        return false;
+    };
+
+    const handleAuthSuccess = () => {
+        setIsAuthenticated(true);
+        setShowPasswordModal(false);
+    };
+
+    const handleCloseModal = () => {
+        setShowPasswordModal(false);
+    };
+
+    return {
+        isAuthenticated,
+        showPasswordModal,
+        remainingAttempts,
+        requireAuth,
+        handleAuthSuccess,
+        handleCloseModal
+    };
+};
+
+// Komponen CopyLinksBox dengan security
+const CopyLinksBox = ({ episodes }) => {
+    const [isCopied, setIsCopied] = useState(false);
+    const [showLinks, setShowLinks] = useState(false);
+    const {
+        isAuthenticated,
+        showPasswordModal,
+        remainingAttempts,
+        requireAuth,
+        handleAuthSuccess,
+        handleCloseModal
+    } = useSecurity();
+
+    // Filter hanya episode yang memiliki URL valid
+    const validEpisodes = episodes.filter(ep => ep.url && ep.url.trim() !== '');
+    
+    // Format links untuk ditampilkan dan dicopy
+    const formattedLinks = validEpisodes.map(ep => 
+        `${ep.title}: ${ep.url}`
+    ).join('\n\n');
+
+    const handleCopyAllLinks = async () => {
+        // Check authentication first
+        if (!requireAuth()) return;
+
+        try {
+            await navigator.clipboard.writeText(formattedLinks);
+            setIsCopied(true);
+            
+            // Reset status copied setelah 3 detik
+            setTimeout(() => setIsCopied(false), 3000);
+        } catch (err) {
+            console.error('Gagal menyalin link:', err);
+            // Fallback untuk browser yang tidak support clipboard API
+            const textArea = document.createElement('textarea');
+            textArea.value = formattedLinks;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+            setIsCopied(true);
+            setTimeout(() => setIsCopied(false), 3000);
+        }
+    };
+
+    if (validEpisodes.length === 0) {
+        return null;
+    }
+
+    return (
+        <>
+            <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-4">
+                <div className="flex justify-between items-center mb-3">
+                    <h4 className="text-md font-semibold text-white">
+                        📋 Link Episode ({validEpisodes.length} episode)
+                        {!isAuthenticated && <span className="text-yellow-400 text-xs ml-2">🔒 Terkunci</span>}
+                    </h4>
+                    <button
+                        onClick={handleCopyAllLinks}
+                        disabled={isCopied}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-200 text-sm font-medium ${
+                            isCopied 
+                                ? 'bg-green-600 text-white' 
+                                : isAuthenticated
+                                    ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                                    : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                        }`}
+                        title={!isAuthenticated ? "Klik untuk membuka dengan password" : ""}
+                    >
+                        {isCopied ? (
+                            <>
+                                <span>✅ Disalin!</span>
+                            </>
+                        ) : (
+                            <>
+                                <span>{isAuthenticated ? '📄' : '🔒'}</span>
+                                {isAuthenticated ? 'Copy Semua Link' : 'Buka Akses'}
+                            </>
+                        )}
+                    </button>
+                </div>
+
+                {/* Toggle untuk show/hide links */}
+                <button
+                    onClick={() => setShowLinks(!showLinks)}
+                    className="flex items-center gap-2 text-gray-300 hover:text-white text-sm mb-2 transition-colors"
+                >
+                    <span>{showLinks ? '▼' : '▶'}</span>
+                    {showLinks ? 'Sembunyikan Link' : 'Tampilkan Link'}
+                </button>
+
+                {/* Box untuk menampilkan links */}
+                {showLinks && (
+                    <div className="bg-gray-900 rounded-lg p-3 max-h-48 overflow-y-auto">
+                        <pre className="text-xs text-gray-300 whitespace-pre-wrap">
+                            {formattedLinks}
+                        </pre>
+                    </div>
+                )}
+
+                {/* Info jumlah episode */}
+                <p className="text-xs text-gray-400 mt-2">
+                    {validEpisodes.length} dari {episodes.length} episode memiliki link yang valid
+                    {!isAuthenticated && (
+                        <span className="text-yellow-400 block mt-1">
+                            🔒 Masukkan password untuk menyalin link
+                        </span>
+                    )}
+                </p>
+            </div>
+
+            {/* Password Modal */}
+            <PasswordModal
+                isOpen={showPasswordModal}
+                onClose={handleCloseModal}
+                onSuccess={handleAuthSuccess}
+                remainingAttempts={remainingAttempts}
+            />
+        </>
+    );
+};
+
+// Custom hook untuk fetch data drama (tetap sama)
 const useDramaData = (bookId, locationState) => {
     const [state, setState] = useState({
         dramaInfo: null,
@@ -86,7 +514,6 @@ const useDramaData = (bookId, locationState) => {
             try {
                 setState(prev => ({ ...prev, isLoading: true, error: null }));
 
-                // Cek cache dari location.state terlebih dahulu
                 if (locationState && 
                     locationState.dramaInfo && 
                     String(locationState.dramaInfo.id) === bookId) {
@@ -109,7 +536,6 @@ const useDramaData = (bookId, locationState) => {
                     }
                 }
 
-                // Fallback: fetch dari API
                 console.log("[LOG] Fetch data dari API...");
                 const fetchedEpisodes = await fetchDramaData(bookId);
                 
@@ -151,99 +577,7 @@ const useDramaData = (bookId, locationState) => {
     return state;
 };
 
-// Komponen untuk Copy Links Box
-const CopyLinksBox = ({ episodes }) => {
-    const [isCopied, setIsCopied] = useState(false);
-    const [showLinks, setShowLinks] = useState(false);
-
-    // Filter hanya episode yang memiliki URL valid
-    const validEpisodes = episodes.filter(ep => ep.url && ep.url.trim() !== '');
-    
-    // Format links untuk ditampilkan dan dicopy
-    const formattedLinks = validEpisodes.map(ep => 
-        `${ep.title}: ${ep.url}`
-    ).join('\n\n');
-
-    const handleCopyAllLinks = async () => {
-        try {
-            await navigator.clipboard.writeText(formattedLinks);
-            setIsCopied(true);
-            
-            // Reset status copied setelah 3 detik
-            setTimeout(() => setIsCopied(false), 3000);
-        } catch (err) {
-            console.error('Gagal menyalin link:', err);
-            // Fallback untuk browser yang tidak support clipboard API
-            const textArea = document.createElement('textarea');
-            textArea.value = formattedLinks;
-            document.body.appendChild(textArea);
-            textArea.select();
-            document.execCommand('copy');
-            document.body.removeChild(textArea);
-            setIsCopied(true);
-            setTimeout(() => setIsCopied(false), 3000);
-        }
-    };
-
-    if (validEpisodes.length === 0) {
-        return null; // Jangan render jika tidak ada link valid
-    }
-
-    return (
-        <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-4">
-            <div className="flex justify-between items-center mb-3">
-                <h4 className="text-md font-semibold text-white">
-                    📋 Link Episode ({validEpisodes.length} episode)
-                </h4>
-                <button
-                    onClick={handleCopyAllLinks}
-                    disabled={isCopied}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-200 text-sm font-medium ${
-                        isCopied 
-                            ? 'bg-green-600 text-white' 
-                            : 'bg-blue-600 hover:bg-blue-700 text-white'
-                    }`}
-                >
-                    {isCopied ? (
-                        <>
-                            <span>✅ Disalin!</span>
-                        </>
-                    ) : (
-                        <>
-                            <span>📄</span>
-                            Copy Semua Link
-                        </>
-                    )}
-                </button>
-            </div>
-
-            {/* Toggle untuk show/hide links */}
-            <button
-                onClick={() => setShowLinks(!showLinks)}
-                className="flex items-center gap-2 text-gray-300 hover:text-white text-sm mb-2 transition-colors"
-            >
-                <span>{showLinks ? '▼' : '▶'}</span>
-                {showLinks ? 'Sembunyikan Link' : 'Tampilkan Link'}
-            </button>
-
-            {/* Box untuk menampilkan links */}
-            {showLinks && (
-                <div className="bg-gray-900 rounded-lg p-3 max-h-48 overflow-y-auto">
-                    <pre className="text-xs text-gray-300 whitespace-pre-wrap">
-                        {formattedLinks}
-                    </pre>
-                </div>
-            )}
-
-            {/* Info jumlah episode */}
-            <p className="text-xs text-gray-400 mt-2">
-                {validEpisodes.length} dari {episodes.length} episode memiliki link yang valid
-            </p>
-        </div>
-    );
-};
-
-// Komponen Header
+// Komponen Header (tetap sama)
 const Header = ({ onBack, title, isError = false }) => (
     <div className="flex justify-between items-center mb-6">
         <h1 className={`text-xl md:text-2xl font-bold truncate max-w-[70%] ${
@@ -260,7 +594,7 @@ const Header = ({ onBack, title, isError = false }) => (
     </div>
 );
 
-// Komponen Video Player
+// Komponen Video Player (tetap sama)
 const VideoPlayer = ({ currentEpisode, videoRef, onEnded, onError }) => (
     <div className="bg-black mb-6 rounded-lg overflow-hidden flex justify-center">
         {currentEpisode.url ? (
@@ -291,7 +625,7 @@ const VideoPlayer = ({ currentEpisode, videoRef, onEnded, onError }) => (
     </div>
 );
 
-// Komponen Episode Button
+// Komponen Episode Button (tetap sama)
 const EpisodeButton = ({ episode, isCurrent, onClick }) => (
     <button
         onClick={() => onClick(episode)}
@@ -318,10 +652,14 @@ export default function Player() {
     const { bookId } = useParams();
     const videoRef = useRef(null);
     
+    // Check jika user diblokir
+    if (securityService.isUserBlocked()) {
+        return <BlockedScreen />;
+    }
+    
     const { dramaInfo, episodes, currentEpisode, isLoading, error } = 
         useDramaData(bookId, location.state);
 
-    // Handle retry dengan reset state
     const handleRetry = useCallback(() => {
         navigate(location.pathname, { 
             replace: true,
@@ -329,20 +667,14 @@ export default function Player() {
         });
     }, [navigate, location.pathname, location.state]);
 
-    // Handle episode change
     const handleEpisodeChange = useCallback((episode) => {
         if (episode.url) {
-            // Scroll ke video player ketika ganti episode
             window.scrollTo({ top: 0, behavior: 'smooth' });
         } else {
-            // Set error state jika episode tidak memiliki URL
-            // Note: Di sini kita perlu menggunakan state management yang proper
-            // Untuk sementara, kita akan menggunakan alert sederhana
             alert("Episode ini tidak memiliki URL yang valid");
         }
     }, []);
 
-    // Handle video ended - auto play next episode
     const handleVideoEnded = useCallback(() => {
         if (!currentEpisode || !episodes || episodes.length === 0) return;
 
@@ -353,13 +685,10 @@ export default function Player() {
         if (currentIndex > -1 && currentIndex < episodes.length - 1) {
             const nextEpisode = episodes[currentIndex + 1];
             console.log(`[LOG] Auto-play episode: ${nextEpisode.title}`);
-            // Untuk mengubah currentEpisode, kita perlu menggunakan state management
-            // Di sini kita akan trigger episode change
             handleEpisodeChange(nextEpisode);
         }
     }, [currentEpisode, episodes, handleEpisodeChange]);
 
-    // Effect untuk handle video source change
     useEffect(() => {
         if (videoRef.current && currentEpisode?.url) {
             videoRef.current.load();
@@ -369,7 +698,6 @@ export default function Player() {
         }
     }, [currentEpisode]);
 
-    // Loading state
     if (isLoading) {
         return (
             <div className="bg-gray-900 min-h-screen text-white">
@@ -381,7 +709,6 @@ export default function Player() {
         );
     }
 
-    // Error state
     if (error) {
         return (
             <div className="bg-gray-900 min-h-screen text-white">
@@ -393,7 +720,6 @@ export default function Player() {
         );
     }
 
-    // Validasi data
     if (!dramaInfo || !currentEpisode || episodes.length === 0) {
         return (
             <div className="bg-gray-900 min-h-screen text-white">
@@ -416,7 +742,6 @@ export default function Player() {
                     title={`${dramaInfo.title} - ${currentEpisode.title}`}
                 />
 
-                {/* Video Player */}
                 <VideoPlayer 
                     currentEpisode={currentEpisode}
                     videoRef={videoRef}
@@ -426,7 +751,6 @@ export default function Player() {
                     }}
                 />
 
-                {/* Drama Info & Episode List */}
                 <div className="bg-gray-800 p-6 rounded-lg">
                     <p className="text-gray-300 mb-4 leading-relaxed">
                         {dramaInfo.description || "Tidak ada deskripsi tersedia."}
@@ -443,7 +767,6 @@ export default function Player() {
                     )}
                     
                     <div className="border-t border-gray-700 pt-4">
-                        {/* BOX COPY LINK EPISODE */}
                         <CopyLinksBox episodes={episodes} />
                         
                         <h3 className="text-lg font-bold mb-4">
