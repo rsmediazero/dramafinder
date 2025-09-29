@@ -99,7 +99,8 @@ const EpisodeButton = ({
   episode, 
   isCurrent, 
   onSelect, 
-  onDownload
+  onDownload,
+  onSendToTelegram
 }) => {
   const handleClick = () => {
     if (episode.url) {
@@ -124,44 +125,230 @@ const EpisodeButton = ({
         {episode.title.replace('EP ', '')}
       </button>
       
-      {episode.url && (
-        <button
-          onClick={() => onDownload(episode)}
-          className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-xs transition-colors duration-200 flex items-center justify-center gap-1 w-full"
-          title={`Download ${episode.title}`}
-        >
-          📥 DL
-        </button>
-      )}
+      <div className="flex gap-1 w-full">
+        {episode.url && (
+          <>
+            <button
+              onClick={() => onDownload(episode)}
+              className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-xs transition-colors duration-200 flex-1 flex items-center justify-center gap-1"
+              title={`Download ${episode.title}`}
+            >
+              📥
+            </button>
+            <button
+              onClick={() => onSendToTelegram(episode)}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs transition-colors duration-200 flex-1 flex items-center justify-center gap-1"
+              title={`Kirim ke Telegram ${episode.title}`}
+            >
+              📤
+            </button>
+          </>
+        )}
+      </div>
     </div>
   );
 };
 
-// Komponen Confirmation Modal
-const DownloadConfirmationModal = ({ isOpen, onConfirm, onCancel, episodeCount }) => {
+// Komponen Modal untuk Telegram
+const TelegramModal = ({ isOpen, onClose, onSend, episode, isSending }) => {
+  const [selectedTokens, setSelectedTokens] = useState([]);
+  
+  // Daftar token bot Telegram (simpan di environment variables untuk production)
+  const telegramTokens = [
+    { 
+      token: process.env.REACT_APP_TELEGRAM_BOT_TOKEN_1 || 'YOUR_BOT_TOKEN_1', 
+      name: 'Bot Utama',
+      chatId: process.env.REACT_APP_TELEGRAM_CHAT_ID_1 || 'YOUR_CHAT_ID_1'
+    },
+    { 
+      token: process.env.REACT_APP_TELEGRAM_BOT_TOKEN_2 || 'YOUR_BOT_TOKEN_2', 
+      name: 'Bot Backup',
+      chatId: process.env.REACT_APP_TELEGRAM_CHAT_ID_2 || 'YOUR_CHAT_ID_2'
+    },
+    { 
+      token: process.env.REACT_APP_TELEGRAM_BOT_TOKEN_3 || 'YOUR_BOT_TOKEN_3', 
+      name: 'Bot Channel',
+      chatId: process.env.REACT_APP_TELEGRAM_CHAT_ID_3 || 'YOUR_CHAT_ID_3'
+    }
+  ];
+
+  const handleTokenToggle = (token) => {
+    setSelectedTokens(prev => 
+      prev.includes(token)
+        ? prev.filter(t => t !== token)
+        : [...prev, token]
+    );
+  };
+
+  const handleSend = () => {
+    if (selectedTokens.length === 0) {
+      alert('Pilih minimal satu bot Telegram');
+      return;
+    }
+    onSend(selectedTokens);
+  };
+
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-gray-800 p-6 rounded-lg max-w-md w-full mx-4">
         <h3 className="text-lg font-bold text-white mb-4">
-          Download Semua Episode?
+          Kirim ke Bot Telegram
         </h3>
-        <p className="text-gray-300 mb-6">
-          Anda akan mendownload {episodeCount} episode. Ini mungkin memakan waktu beberapa saat dan menggunakan kuota internet.
-        </p>
+        
+        <div className="mb-4">
+          <p className="text-gray-300 text-sm mb-2">
+            Pilih bot Telegram tujuan:
+          </p>
+          <div className="space-y-2 max-h-40 overflow-y-auto">
+            {telegramTokens.map((bot, index) => (
+              <label key={index} className="flex items-center space-x-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={selectedTokens.includes(bot.token)}
+                  onChange={() => handleTokenToggle(bot.token)}
+                  className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-2"
+                />
+                <span className="text-white text-sm">{bot.name}</span>
+                <span className="text-gray-400 text-xs">({bot.chatId})</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {episode && (
+          <div className="bg-gray-700 p-3 rounded mb-4">
+            <p className="text-white text-sm font-semibold">Episode: {episode.title}</p>
+            <p className="text-gray-300 text-xs truncate">URL: {episode.url}</p>
+          </div>
+        )}
+
         <div className="flex gap-3 justify-end">
           <button
-            onClick={onCancel}
-            className="bg-gray-600 hover:bg-gray-500 text-white px-4 py-2 rounded transition-colors"
+            onClick={onClose}
+            disabled={isSending}
+            className="bg-gray-600 hover:bg-gray-500 text-white px-4 py-2 rounded transition-colors disabled:opacity-50"
           >
             Batal
           </button>
           <button
-            onClick={onConfirm}
-            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded transition-colors"
+            onClick={handleSend}
+            disabled={isSending || selectedTokens.length === 0}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded transition-colors disabled:opacity-50 flex items-center gap-2"
           >
-            Download Semua
+            {isSending ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                Mengirim...
+              </>
+            ) : (
+              `Kirim ke ${selectedTokens.length} Bot`
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Komponen Modal untuk Kirim Semua Episode
+const TelegramAllModal = ({ isOpen, onClose, onSend, episodes, isSending }) => {
+  const [selectedTokens, setSelectedTokens] = useState([]);
+  
+  const telegramTokens = [
+    { 
+      token: process.env.REACT_APP_TELEGRAM_BOT_TOKEN_1 || 'YOUR_BOT_TOKEN_1', 
+      name: 'Bot Utama',
+      chatId: process.env.REACT_APP_TELEGRAM_CHAT_ID_1 || 'YOUR_CHAT_ID_1'
+    },
+    { 
+      token: process.env.REACT_APP_TELEGRAM_BOT_TOKEN_2 || 'YOUR_BOT_TOKEN_2', 
+      name: 'Bot Backup',
+      chatId: process.env.REACT_APP_TELEGRAM_CHAT_ID_2 || 'YOUR_CHAT_ID_2'
+    },
+    { 
+      token: process.env.REACT_APP_TELEGRAM_BOT_TOKEN_3 || 'YOUR_BOT_TOKEN_3', 
+      name: 'Bot Channel',
+      chatId: process.env.REACT_APP_TELEGRAM_CHAT_ID_3 || 'YOUR_CHAT_ID_3'
+    }
+  ];
+
+  const handleTokenToggle = (token) => {
+    setSelectedTokens(prev => 
+      prev.includes(token)
+        ? prev.filter(t => t !== token)
+        : [...prev, token]
+    );
+  };
+
+  const handleSend = () => {
+    if (selectedTokens.length === 0) {
+      alert('Pilih minimal satu bot Telegram');
+      return;
+    }
+    onSend(selectedTokens);
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-gray-800 p-6 rounded-lg max-w-md w-full mx-4">
+        <h3 className="text-lg font-bold text-white mb-4">
+          Kirim Semua Episode ke Telegram
+        </h3>
+        
+        <div className="mb-4">
+          <p className="text-gray-300 text-sm mb-2">
+            Pilih bot Telegram tujuan:
+          </p>
+          <div className="space-y-2 max-h-40 overflow-y-auto">
+            {telegramTokens.map((bot, index) => (
+              <label key={index} className="flex items-center space-x-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={selectedTokens.includes(bot.token)}
+                  onChange={() => handleTokenToggle(bot.token)}
+                  className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-2"
+                />
+                <span className="text-white text-sm">{bot.name}</span>
+                <span className="text-gray-400 text-xs">({bot.chatId})</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-gray-700 p-3 rounded mb-4">
+          <p className="text-white text-sm font-semibold">
+            Total: {episodes.length} Episode
+          </p>
+          <p className="text-gray-300 text-xs">
+            Akan mengirim semua episode ke {selectedTokens.length} bot yang dipilih
+          </p>
+        </div>
+
+        <div className="flex gap-3 justify-end">
+          <button
+            onClick={onClose}
+            disabled={isSending}
+            className="bg-gray-600 hover:bg-gray-500 text-white px-4 py-2 rounded transition-colors disabled:opacity-50"
+          >
+            Batal
+          </button>
+          <button
+            onClick={handleSend}
+            disabled={isSending || selectedTokens.length === 0}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded transition-colors disabled:opacity-50 flex items-center gap-2"
+          >
+            {isSending ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                Mengirim...
+              </>
+            ) : (
+              `Kirim ${episodes.length} Episode`
+            )}
           </button>
         </div>
       </div>
@@ -179,7 +366,9 @@ export default function Player() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isDownloading, setIsDownloading] = useState(false);
-  const [showDownloadModal, setShowDownloadModal] = useState(false);
+  const [isSendingTelegram, setIsSendingTelegram] = useState(false);
+  const [telegramModal, setTelegramModal] = useState({ open: false, episode: null });
+  const [telegramAllModal, setTelegramAllModal] = useState({ open: false });
 
   const fetchDramaData = useCallback(async (targetBookId) => {
     setIsLoading(true);
@@ -216,6 +405,128 @@ export default function Player() {
     }
   }, []);
 
+  // Fungsi untuk mengirim ke Telegram
+  const sendToTelegram = useCallback(async (tokens, episode, isMultiple = false) => {
+    setIsSendingTelegram(true);
+    
+    try {
+      const results = [];
+      
+      for (const token of tokens) {
+        try {
+          const message = {
+            chat_id: token.chatId || process.env.REACT_APP_DEFAULT_CHAT_ID,
+            text: `🎬 *${dramaData.info?.title || 'Drama'}*\n\n` +
+                  `📺 *Episode:* ${episode.title}\n` +
+                  `🔗 *URL:* ${episode.url}\n\n` +
+                  `_Dikirim otomatis dari DramaStream_`,
+            parse_mode: 'Markdown'
+          };
+
+          const response = await fetch(`https://api.telegram.org/bot${token.token}/sendMessage`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(message)
+          });
+
+          const result = await response.json();
+          results.push({
+            bot: token.name,
+            success: response.ok,
+            message: response.ok ? 'Berhasil' : result.description
+          });
+
+          // Delay antar request untuk menghindari rate limit
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+        } catch (err) {
+          results.push({
+            bot: token.name,
+            success: false,
+            message: err.message
+          });
+        }
+      }
+
+      // Tampilkan hasil
+      const successCount = results.filter(r => r.success).length;
+      const failedCount = results.filter(r => !r.success).length;
+      
+      if (failedCount === 0) {
+        alert(`✅ Berhasil mengirim ke ${successCount} bot`);
+      } else {
+        const failedBots = results.filter(r => !r.success).map(r => `${r.bot}: ${r.message}`).join('\n');
+        alert(`📊 Hasil pengiriman:\n✅ Berhasil: ${successCount}\n❌ Gagal: ${failedCount}\n\nGagal di:\n${failedBots}`);
+      }
+
+    } catch (err) {
+      console.error('Error sending to Telegram:', err);
+      alert('❌ Gagal mengirim ke Telegram: ' + err.message);
+    } finally {
+      setIsSendingTelegram(false);
+      setTelegramModal({ open: false, episode: null });
+      setTelegramAllModal({ open: false });
+    }
+  }, [dramaData.info]);
+
+  // Fungsi untuk mengirim semua episode
+  const sendAllToTelegram = useCallback(async (tokens) => {
+    setIsSendingTelegram(true);
+    
+    try {
+      const episodesWithUrl = dramaData.episodes.filter(ep => ep.url);
+      let totalSuccess = 0;
+      let totalFailed = 0;
+
+      for (const episode of episodesWithUrl) {
+        for (const token of tokens) {
+          try {
+            const message = {
+              chat_id: token.chatId || process.env.REACT_APP_DEFAULT_CHAT_ID,
+              text: `🎬 *${dramaData.info?.title || 'Drama'}*\n\n` +
+                    `📺 *Episode:* ${episode.title}\n` +
+                    `🔗 *URL:* ${episode.url}\n\n` +
+                    `_Dikirim otomatis dari DramaStream_`,
+              parse_mode: 'Markdown'
+            };
+
+            const response = await fetch(`https://api.telegram.org/bot${token.token}/sendMessage`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(message)
+            });
+
+            if (response.ok) {
+              totalSuccess++;
+            } else {
+              totalFailed++;
+            }
+
+            // Delay untuk menghindari rate limit
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+          } catch (err) {
+            totalFailed++;
+            console.error(`Gagal mengirim ${episode.title} ke ${token.name}:`, err);
+          }
+        }
+      }
+
+      alert(`📊 Hasil pengiriman semua episode:\n✅ Berhasil: ${totalSuccess}\n❌ Gagal: ${totalFailed}`);
+
+    } catch (err) {
+      console.error('Error sending all to Telegram:', err);
+      alert('❌ Gagal mengirim episode ke Telegram: ' + err.message);
+    } finally {
+      setIsSendingTelegram(false);
+      setTelegramAllModal({ open: false });
+    }
+  }, [dramaData.episodes, dramaData.info]);
+
   const handleDownloadEpisode = useCallback(async (episode) => {
     if (!episode?.url) {
       alert("URL download tidak tersedia untuk episode ini.");
@@ -227,11 +538,9 @@ export default function Player() {
     try {
       console.log('Memulai download dari:', episode.url);
       
-      // Method 1: Direct download menggunakan anchor tag (lebih cepat)
       const link = document.createElement('a');
       link.href = episode.url;
       
-      // Ekstrak nama file dari URL atau buat custom filename
       const urlParts = episode.url.split('/');
       const originalFileName = urlParts[urlParts.length - 1];
       const fileName = originalFileName.includes('.mp4') 
@@ -249,8 +558,6 @@ export default function Player() {
       
     } catch (err) {
       console.error("Gagal mengunduh:", err);
-      
-      // Fallback: Buka tab baru jika direct download gagal
       try {
         window.open(episode.url, '_blank');
         alert("Download dimulai di tab baru. Jika tidak otomatis terdownload, klik kanan pada video dan pilih 'Save video as'.");
@@ -262,32 +569,9 @@ export default function Player() {
     }
   }, [dramaData.info]);
 
-  const handleDownloadAllEpisodes = useCallback(() => {
-    const episodesWithUrl = dramaData.episodes.filter(ep => ep.url);
-    
-    if (episodesWithUrl.length === 0) {
-      alert("Tidak ada episode yang dapat didownload.");
-      return;
-    }
-
-    // Tutup modal
-    setShowDownloadModal(false);
-
-    // Download semua episode satu per satu
-    episodesWithUrl.forEach((episode, index) => {
-      // Delay sedikit antara setiap download untuk menghindari blockage
-      setTimeout(() => {
-        handleDownloadEpisode(episode);
-      }, index * 1000); // 1 detik delay antara setiap download
-    });
-
-    alert(`Memulai download ${episodesWithUrl.length} episode. Browser akan memproses satu per satu.`);
-  }, [dramaData.episodes, handleDownloadEpisode]);
-
   const handleEpisodeChange = useCallback((episode) => {
     if (episode.url) {
       setCurrentEpisode(episode);
-      // Scroll ke video player ketika episode berubah
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
       setError("Episode ini tidak memiliki URL yang valid");
@@ -439,25 +723,44 @@ export default function Player() {
             {dramaData.info.title} - {currentEpisode.title}
           </h1>
           <div className="flex gap-2">
-            {/* Tombol Download Episode Saat Ini */}
+            {/* Tombol Download & Kirim Telegram untuk Episode Saat Ini */}
             {currentEpisode.url && (
-              <button
-                onClick={() => handleDownloadEpisode(currentEpisode)}
-                disabled={isDownloading}
-                className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200 text-sm flex items-center gap-2"
-                title={`Download ${currentEpisode.title}`}
-              >
-                {isDownloading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
-                    Download...
-                  </>
-                ) : (
-                  <>
-                    📥 Download Episode
-                  </>
-                )}
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleDownloadEpisode(currentEpisode)}
+                  disabled={isDownloading}
+                  className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200 text-sm flex items-center gap-2"
+                  title={`Download ${currentEpisode.title}`}
+                >
+                  {isDownloading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                      Download...
+                    </>
+                  ) : (
+                    <>
+                      📥 Download
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={() => setTelegramModal({ open: true, episode: currentEpisode })}
+                  disabled={isSendingTelegram}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200 text-sm flex items-center gap-2"
+                  title={`Kirim ke Telegram ${currentEpisode.title}`}
+                >
+                  {isSendingTelegram ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                      Mengirim...
+                    </>
+                  ) : (
+                    <>
+                      📤 Telegram
+                    </>
+                  )}
+                </button>
+              </div>
             )}
             <Link 
               to="/" 
@@ -497,11 +800,11 @@ export default function Player() {
             </h3>
             {dramaData.episodes.some(ep => ep.url) && (
               <button
-                onClick={() => setShowDownloadModal(true)}
-                className="bg-blue-600 hover:bg-blue-700 text-white text-xs py-1 px-3 rounded transition-colors"
-                title="Download semua episode"
+                onClick={() => setTelegramAllModal({ open: true })}
+                className="bg-blue-600 hover:bg-blue-700 text-white text-xs py-1 px-3 rounded transition-colors flex items-center gap-1"
+                title="Kirim semua episode ke Telegram"
               >
-                📥 Download Semua
+                📤 Kirim Semua ke Telegram
               </button>
             )}
           </div>
@@ -514,18 +817,29 @@ export default function Player() {
                 isCurrent={currentEpisode.episodeNumber === ep.episodeNumber}
                 onSelect={handleEpisodeChange}
                 onDownload={handleDownloadEpisode}
+                onSendToTelegram={(episode) => setTelegramModal({ open: true, episode })}
               />
             ))}
           </div>
         </div>
       </div>
 
-      {/* Download Confirmation Modal */}
-      <DownloadConfirmationModal
-        isOpen={showDownloadModal}
-        onConfirm={handleDownloadAllEpisodes}
-        onCancel={() => setShowDownloadModal(false)}
-        episodeCount={dramaData.episodes.filter(ep => ep.url).length}
+      {/* Modal Telegram untuk Single Episode */}
+      <TelegramModal
+        isOpen={telegramModal.open}
+        onClose={() => setTelegramModal({ open: false, episode: null })}
+        onSend={(tokens) => sendToTelegram(tokens, telegramModal.episode)}
+        episode={telegramModal.episode}
+        isSending={isSendingTelegram}
+      />
+
+      {/* Modal Telegram untuk Semua Episode */}
+      <TelegramAllModal
+        isOpen={telegramAllModal.open}
+        onClose={() => setTelegramAllModal({ open: false })}
+        onSend={sendAllToTelegram}
+        episodes={dramaData.episodes.filter(ep => ep.url)}
+        isSending={isSendingTelegram}
       />
 
       {/* Downloading Indicator */}
