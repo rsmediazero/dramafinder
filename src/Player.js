@@ -82,7 +82,7 @@ const VideoPlayer = ({ episode, onEnded, onError }) => {
         className="max-h-[75vh] w-full"
         controls
         autoPlay
-        muted // Auto-play requires muted in modern browsers
+        muted
         onLoadStart={handleLoadStart}
         onLoadedData={handleLoadedData}
         onEnded={onEnded}
@@ -149,26 +149,16 @@ const EpisodeButton = ({
   );
 };
 
-// Komponen Modal untuk Telegram
+// Komponen Modal untuk Telegram Single Episode
 const TelegramModal = ({ isOpen, onClose, onSend, episode, isSending }) => {
   const [selectedTokens, setSelectedTokens] = useState([]);
   
-  // Daftar token bot Telegram (simpan di environment variables untuk production)
+  // Daftar token bot Telegram - PASTIKAN TOKEN DAN CHAT ID ANDA BENAR
   const telegramTokens = [
     { 
-      token: process.env.REACT_APP_TELEGRAM_BOT_TOKEN_1 || 'YOUR_BOT_TOKEN_1', 
-      name: 'Bot Utama',
-      chatId: process.env.REACT_APP_TELEGRAM_CHAT_ID_1 || 'YOUR_CHAT_ID_1'
-    },
-    { 
-      token: process.env.REACT_APP_TELEGRAM_BOT_TOKEN_2 || 'YOUR_BOT_TOKEN_2', 
-      name: 'Bot Backup',
-      chatId: process.env.REACT_APP_TELEGRAM_CHAT_ID_2 || 'YOUR_CHAT_ID_2'
-    },
-    { 
-      token: process.env.REACT_APP_TELEGRAM_BOT_TOKEN_3 || 'YOUR_BOT_TOKEN_3', 
-      name: 'Bot Channel',
-      chatId: process.env.REACT_APP_TELEGRAM_CHAT_ID_3 || 'YOUR_CHAT_ID_3'
+      token: '8433377632:AAFjurpcQXQtiG7B8c6GyGXEKw5mjN-Vu0A', 
+      name: 'DramaStream Bot',
+      chatId: 5451748453
     }
   ];
 
@@ -185,7 +175,13 @@ const TelegramModal = ({ isOpen, onClose, onSend, episode, isSending }) => {
       alert('Pilih minimal satu bot Telegram');
       return;
     }
-    onSend(selectedTokens);
+    
+    // Ambil data bot lengkap berdasarkan token yang dipilih
+    const selectedBots = telegramTokens.filter(bot => 
+      selectedTokens.includes(bot.token)
+    );
+    
+    onSend(selectedBots);
   };
 
   if (!isOpen) return null;
@@ -194,7 +190,7 @@ const TelegramModal = ({ isOpen, onClose, onSend, episode, isSending }) => {
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-gray-800 p-6 rounded-lg max-w-md w-full mx-4">
         <h3 className="text-lg font-bold text-white mb-4">
-          Kirim ke Bot Telegram
+          📤 Kirim ke Bot Telegram
         </h3>
         
         <div className="mb-4">
@@ -203,15 +199,18 @@ const TelegramModal = ({ isOpen, onClose, onSend, episode, isSending }) => {
           </p>
           <div className="space-y-2 max-h-40 overflow-y-auto">
             {telegramTokens.map((bot, index) => (
-              <label key={index} className="flex items-center space-x-3 cursor-pointer">
+              <label key={index} className="flex items-center space-x-3 cursor-pointer p-2 hover:bg-gray-700 rounded">
                 <input
                   type="checkbox"
                   checked={selectedTokens.includes(bot.token)}
                   onChange={() => handleTokenToggle(bot.token)}
                   className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-2"
                 />
-                <span className="text-white text-sm">{bot.name}</span>
-                <span className="text-gray-400 text-xs">({bot.chatId})</span>
+                <div>
+                  <span className="text-white text-sm font-medium">{bot.name}</span>
+                  <br />
+                  <span className="text-gray-400 text-xs">Chat ID: {bot.chatId}</span>
+                </div>
               </label>
             ))}
           </div>
@@ -219,8 +218,10 @@ const TelegramModal = ({ isOpen, onClose, onSend, episode, isSending }) => {
 
         {episode && (
           <div className="bg-gray-700 p-3 rounded mb-4">
-            <p className="text-white text-sm font-semibold">Episode: {episode.title}</p>
-            <p className="text-gray-300 text-xs truncate">URL: {episode.url}</p>
+            <p className="text-white text-sm font-semibold">🎬 Episode: {episode.title}</p>
+            <p className="text-gray-300 text-xs truncate" title={episode.url}>
+              🔗 URL: {episode.url.substring(0, 50)}...
+            </p>
           </div>
         )}
 
@@ -243,7 +244,7 @@ const TelegramModal = ({ isOpen, onClose, onSend, episode, isSending }) => {
                 Mengirim...
               </>
             ) : (
-              `Kirim ke ${selectedTokens.length} Bot`
+              `📤 Kirim ke ${selectedTokens.length} Bot`
             )}
           </button>
         </div>
@@ -258,19 +259,9 @@ const TelegramAllModal = ({ isOpen, onClose, onSend, episodes, isSending }) => {
   
   const telegramTokens = [
     { 
-      token: process.env.REACT_APP_TELEGRAM_BOT_TOKEN_1 || 'YOUR_BOT_TOKEN_1', 
-      name: 'Bot Utama',
-      chatId: process.env.REACT_APP_TELEGRAM_CHAT_ID_1 || 'YOUR_CHAT_ID_1'
-    },
-    { 
-      token: process.env.REACT_APP_TELEGRAM_BOT_TOKEN_2 || 'YOUR_BOT_TOKEN_2', 
-      name: 'Bot Backup',
-      chatId: process.env.REACT_APP_TELEGRAM_CHAT_ID_2 || 'YOUR_CHAT_ID_2'
-    },
-    { 
-      token: process.env.REACT_APP_TELEGRAM_BOT_TOKEN_3 || 'YOUR_BOT_TOKEN_3', 
-      name: 'Bot Channel',
-      chatId: process.env.REACT_APP_TELEGRAM_CHAT_ID_3 || 'YOUR_CHAT_ID_3'
+      token: '8433377632:AAFjurpcQXQtiG7B8c6GyGXEKw5mjN-Vu0A', 
+      name: 'DramaStream Bot',
+      chatId: 5451748453
     }
   ];
 
@@ -287,7 +278,12 @@ const TelegramAllModal = ({ isOpen, onClose, onSend, episodes, isSending }) => {
       alert('Pilih minimal satu bot Telegram');
       return;
     }
-    onSend(selectedTokens);
+    
+    const selectedBots = telegramTokens.filter(bot => 
+      selectedTokens.includes(bot.token)
+    );
+    
+    onSend(selectedBots);
   };
 
   if (!isOpen) return null;
@@ -296,7 +292,7 @@ const TelegramAllModal = ({ isOpen, onClose, onSend, episodes, isSending }) => {
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-gray-800 p-6 rounded-lg max-w-md w-full mx-4">
         <h3 className="text-lg font-bold text-white mb-4">
-          Kirim Semua Episode ke Telegram
+          📤 Kirim Semua Episode ke Telegram
         </h3>
         
         <div className="mb-4">
@@ -305,15 +301,18 @@ const TelegramAllModal = ({ isOpen, onClose, onSend, episodes, isSending }) => {
           </p>
           <div className="space-y-2 max-h-40 overflow-y-auto">
             {telegramTokens.map((bot, index) => (
-              <label key={index} className="flex items-center space-x-3 cursor-pointer">
+              <label key={index} className="flex items-center space-x-3 cursor-pointer p-2 hover:bg-gray-700 rounded">
                 <input
                   type="checkbox"
                   checked={selectedTokens.includes(bot.token)}
                   onChange={() => handleTokenToggle(bot.token)}
                   className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-2"
                 />
-                <span className="text-white text-sm">{bot.name}</span>
-                <span className="text-gray-400 text-xs">({bot.chatId})</span>
+                <div>
+                  <span className="text-white text-sm font-medium">{bot.name}</span>
+                  <br />
+                  <span className="text-gray-400 text-xs">Chat ID: {bot.chatId}</span>
+                </div>
               </label>
             ))}
           </div>
@@ -321,10 +320,13 @@ const TelegramAllModal = ({ isOpen, onClose, onSend, episodes, isSending }) => {
 
         <div className="bg-gray-700 p-3 rounded mb-4">
           <p className="text-white text-sm font-semibold">
-            Total: {episodes.length} Episode
+            📊 Total: {episodes.length} Episode
           </p>
           <p className="text-gray-300 text-xs">
             Akan mengirim semua episode ke {selectedTokens.length} bot yang dipilih
+          </p>
+          <p className="text-yellow-300 text-xs mt-1">
+            ⚠️ Proses ini mungkin memakan waktu beberapa menit
           </p>
         </div>
 
@@ -347,7 +349,7 @@ const TelegramAllModal = ({ isOpen, onClose, onSend, episodes, isSending }) => {
                 Mengirim...
               </>
             ) : (
-              `Kirim ${episodes.length} Episode`
+              `📤 Kirim ${episodes.length} Episode`
             )}
           </button>
         </div>
@@ -405,122 +407,172 @@ export default function Player() {
     }
   }, []);
 
-  // Fungsi untuk mengirim ke Telegram
-  const sendToTelegram = useCallback(async (tokens, episode, isMultiple = false) => {
+  // Fungsi untuk mengirim ke Telegram - FIXED VERSION
+  const sendToTelegram = useCallback(async (bots, episode) => {
     setIsSendingTelegram(true);
     
     try {
+      let successCount = 0;
+      let failedCount = 0;
       const results = [];
       
-      for (const token of tokens) {
+      for (const bot of bots) {
         try {
-          const message = {
-            chat_id: token.chatId || process.env.REACT_APP_DEFAULT_CHAT_ID,
-            text: `🎬 *${dramaData.info?.title || 'Drama'}*\n\n` +
-                  `📺 *Episode:* ${episode.title}\n` +
-                  `🔗 *URL:* ${episode.url}\n\n` +
-                  `_Dikirim otomatis dari DramaStream_`,
-            parse_mode: 'Markdown'
-          };
-
-          const response = await fetch(`https://api.telegram.org/bot${token.token}/sendMessage`, {
-            method: 'POST',
+          console.log('🔄 Mengirim ke:', bot.name);
+          
+          // Encode message untuk URL
+          const message = encodeURIComponent(
+            `🎬 *${dramaData.info?.title || 'Drama'}*\n\n` +
+            `📺 *Episode:* ${episode.title}\n` +
+            `🔗 *URL:* ${episode.url}\n\n` +
+            `_Dikirim otomatis dari DramaStream_`
+          );
+          
+          // Gunakan URL-based approach (lebih reliable)
+          const telegramUrl = `https://api.telegram.org/bot${bot.token}/sendMessage?chat_id=${bot.chatId}&text=${message}&parse_mode=Markdown`;
+          
+          console.log('📡 URL:', telegramUrl.substring(0, 100) + '...');
+          
+          const response = await fetch(telegramUrl, {
+            method: 'GET', // Gunakan GET untuk avoid CORS issues
             headers: {
               'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(message)
+            }
           });
-
+          
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+          
           const result = await response.json();
-          results.push({
-            bot: token.name,
-            success: response.ok,
-            message: response.ok ? 'Berhasil' : result.description
-          });
-
-          // Delay antar request untuk menghindari rate limit
-          await new Promise(resolve => setTimeout(resolve, 500));
+          console.log('📨 Response:', result);
+          
+          if (result.ok) {
+            successCount++;
+            results.push({
+              bot: bot.name,
+              success: true,
+              message: 'Berhasil dikirim'
+            });
+          } else {
+            failedCount++;
+            results.push({
+              bot: bot.name,
+              success: false,
+              message: result.description || 'Unknown error'
+            });
+          }
           
         } catch (err) {
+          console.error('❌ Error mengirim ke', bot.name, ':', err);
+          failedCount++;
           results.push({
-            bot: token.name,
+            bot: bot.name,
             success: false,
-            message: err.message
+            message: err.message || 'Network error'
           });
+          
+          // Fallback: Buka tab baru
+          try {
+            const fallbackMessage = encodeURIComponent(
+              `🎬 ${dramaData.info?.title || 'Drama'}\n\n` +
+              `📺 Episode: ${episode.title}\n` +
+              `🔗 URL: ${episode.url}\n\n` +
+              `Dikirim otomatis dari DramaStream`
+            );
+            const fallbackUrl = `https://api.telegram.org/bot${bot.token}/sendMessage?chat_id=${bot.chatId}&text=${fallbackMessage}`;
+            window.open(fallbackUrl, '_blank');
+          } catch (fallbackErr) {
+            console.error('Fallback juga gagal:', fallbackErr);
+          }
         }
+        
+        // Delay untuk hindari rate limit
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
-
-      // Tampilkan hasil
-      const successCount = results.filter(r => r.success).length;
-      const failedCount = results.filter(r => !r.success).length;
       
-      if (failedCount === 0) {
+      // Tampilkan hasil
+      if (successCount > 0) {
         alert(`✅ Berhasil mengirim ke ${successCount} bot`);
-      } else {
-        const failedBots = results.filter(r => !r.success).map(r => `${r.bot}: ${r.message}`).join('\n');
-        alert(`📊 Hasil pengiriman:\n✅ Berhasil: ${successCount}\n❌ Gagal: ${failedCount}\n\nGagal di:\n${failedBots}`);
       }
-
+      
+      if (failedCount > 0) {
+        const failedBots = results.filter(r => !r.success).map(r => `• ${r.bot}: ${r.message}`).join('\n');
+        alert(`❌ Gagal mengirim ke ${failedCount} bot:\n${failedBots}`);
+      }
+      
     } catch (err) {
-      console.error('Error sending to Telegram:', err);
+      console.error('💥 Error utama:', err);
       alert('❌ Gagal mengirim ke Telegram: ' + err.message);
     } finally {
       setIsSendingTelegram(false);
       setTelegramModal({ open: false, episode: null });
-      setTelegramAllModal({ open: false });
     }
   }, [dramaData.info]);
 
   // Fungsi untuk mengirim semua episode
-  const sendAllToTelegram = useCallback(async (tokens) => {
+  const sendAllToTelegram = useCallback(async (bots) => {
     setIsSendingTelegram(true);
     
     try {
       const episodesWithUrl = dramaData.episodes.filter(ep => ep.url);
       let totalSuccess = 0;
       let totalFailed = 0;
-
-      for (const episode of episodesWithUrl) {
-        for (const token of tokens) {
+      
+      if (episodesWithUrl.length === 0) {
+        alert('❌ Tidak ada episode yang dapat dikirim');
+        return;
+      }
+      
+      alert(`🚀 Memulai pengiriman ${episodesWithUrl.length} episode...`);
+      
+      for (let i = 0; i < episodesWithUrl.length; i++) {
+        const episode = episodesWithUrl[i];
+        
+        for (const bot of bots) {
           try {
-            const message = {
-              chat_id: token.chatId || process.env.REACT_APP_DEFAULT_CHAT_ID,
-              text: `🎬 *${dramaData.info?.title || 'Drama'}*\n\n` +
-                    `📺 *Episode:* ${episode.title}\n` +
-                    `🔗 *URL:* ${episode.url}\n\n` +
-                    `_Dikirim otomatis dari DramaStream_`,
-              parse_mode: 'Markdown'
-            };
-
-            const response = await fetch(`https://api.telegram.org/bot${token.token}/sendMessage`, {
-              method: 'POST',
+            const message = encodeURIComponent(
+              `🎬 *${dramaData.info?.title || 'Drama'}*\n\n` +
+              `📺 *Episode:* ${episode.title}\n` +
+              `🔗 *URL:* ${episode.url}\n\n` +
+              `_Dikirim otomatis dari DramaStream_`
+            );
+            
+            const telegramUrl = `https://api.telegram.org/bot${bot.token}/sendMessage?chat_id=${bot.chatId}&text=${message}&parse_mode=Markdown`;
+            
+            const response = await fetch(telegramUrl, {
+              method: 'GET',
               headers: {
                 'Content-Type': 'application/json',
-              },
-              body: JSON.stringify(message)
+              }
             });
-
+            
             if (response.ok) {
               totalSuccess++;
             } else {
               totalFailed++;
             }
-
-            // Delay untuk menghindari rate limit
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // Delay lebih lama untuk bulk sending
+            await new Promise(resolve => setTimeout(resolve, 2000));
             
           } catch (err) {
             totalFailed++;
-            console.error(`Gagal mengirim ${episode.title} ke ${token.name}:`, err);
+            console.error(`Gagal mengirim ${episode.title} ke ${bot.name}:`, err);
           }
         }
+        
+        // Update progress setiap 5 episode
+        if ((i + 1) % 5 === 0) {
+          console.log(`📊 Progress: ${i + 1}/${episodesWithUrl.length} episode`);
+        }
       }
-
-      alert(`📊 Hasil pengiriman semua episode:\n✅ Berhasil: ${totalSuccess}\n❌ Gagal: ${totalFailed}`);
-
+      
+      alert(`📊 Pengiriman selesai!\n✅ Berhasil: ${totalSuccess}\n❌ Gagal: ${totalFailed}`);
+      
     } catch (err) {
-      console.error('Error sending all to Telegram:', err);
-      alert('❌ Gagal mengirim episode ke Telegram: ' + err.message);
+      console.error('💥 Error mengirim semua episode:', err);
+      alert('❌ Gagal mengirim episode: ' + err.message);
     } finally {
       setIsSendingTelegram(false);
       setTelegramAllModal({ open: false });
@@ -801,10 +853,20 @@ export default function Player() {
             {dramaData.episodes.some(ep => ep.url) && (
               <button
                 onClick={() => setTelegramAllModal({ open: true })}
-                className="bg-blue-600 hover:bg-blue-700 text-white text-xs py-1 px-3 rounded transition-colors flex items-center gap-1"
+                disabled={isSendingTelegram}
+                className="bg-blue-600 hover:bg-blue-700 text-white text-xs py-2 px-3 rounded transition-colors flex items-center gap-1 disabled:opacity-50"
                 title="Kirim semua episode ke Telegram"
               >
-                📤 Kirim Semua ke Telegram
+                {isSendingTelegram ? (
+                  <>
+                    <div className="animate-spin rounded-full h-3 w-3 border-t-2 border-b-2 border-white"></div>
+                    Mengirim...
+                  </>
+                ) : (
+                  <>
+                    📤 Kirim Semua ke Telegram
+                  </>
+                )}
               </button>
             )}
           </div>
@@ -828,7 +890,7 @@ export default function Player() {
       <TelegramModal
         isOpen={telegramModal.open}
         onClose={() => setTelegramModal({ open: false, episode: null })}
-        onSend={(tokens) => sendToTelegram(tokens, telegramModal.episode)}
+        onSend={(bots) => sendToTelegram(bots, telegramModal.episode)}
         episode={telegramModal.episode}
         isSending={isSendingTelegram}
       />
@@ -847,6 +909,14 @@ export default function Player() {
         <div className="fixed bottom-4 right-4 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2">
           <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
           Mengunduh video...
+        </div>
+      )}
+
+      {/* Telegram Sending Indicator */}
+      {isSendingTelegram && (
+        <div className="fixed bottom-4 left-4 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2">
+          <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+          Mengirim ke Telegram...
         </div>
       )}
     </div>
