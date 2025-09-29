@@ -602,7 +602,7 @@ export default function Player() {
       alert('❌ Password salah! Silakan coba lagi.');
       return false;
     }
-  }, [VALID_PASSWORD]); // FIXED: Added VALID_PASSWORD dependency
+  }, [VALID_PASSWORD]);
 
   // Fungsi untuk membuka modal password
   const openPasswordModal = useCallback((type, episode = null, bots = null) => {
@@ -746,7 +746,7 @@ export default function Player() {
 
     try {
       // FIXED: Create a separate function to handle sending individual episode
-      const sendEpisode = async (episode, currentIndex) => {
+      const sendSingleEpisode = async (episode, currentIndex, successRef, failedRef) => {
         // Check jika proses dibatalkan
         if (isCancelledRef.current) {
           return { success: false, cancelled: true };
@@ -757,8 +757,8 @@ export default function Player() {
           ...prev,
           current: currentIndex + 1,
           currentEpisode: episode,
-          successCount: totalSuccess,
-          failedCount: totalFailed
+          successCount: successRef.current,
+          failedCount: failedRef.current
         }));
 
         let episodeSuccess = false;
@@ -811,10 +811,14 @@ export default function Player() {
         return { success: episodeSuccess, cancelled: false };
       };
 
+      // Create refs for counters to avoid closure issues
+      const successRef = { current: totalSuccess };
+      const failedRef = { current: totalFailed };
+
       // Process episodes sequentially
       for (let i = 0; i < episodesWithUrl.length; i++) {
         const episode = episodesWithUrl[i];
-        const result = await sendEpisode(episode, i);
+        const result = await sendSingleEpisode(episode, i, successRef, failedRef);
         
         if (result.cancelled) {
           console.log('🚫 Proses dibatalkan oleh user');
@@ -823,8 +827,10 @@ export default function Player() {
 
         if (result.success) {
           totalSuccess++;
+          successRef.current = totalSuccess;
         } else {
           totalFailed++;
+          failedRef.current = totalFailed;
         }
 
         // Update progress counts menggunakan functional update
