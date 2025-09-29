@@ -192,36 +192,60 @@ const VIPModal = ({ isOpen, onClose, onSuccess }) => {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
 
-    const handleVIPCodeSubmit = async (e) => {
-        e.preventDefault();
-        if (!vipCode.trim()) {
-            setError('Kode VIP tidak boleh kosong');
+    // Di dalam VIPModal component, update handleVIPCodeSubmit:
+
+const handleVIPCodeSubmit = async (e) => {
+    e.preventDefault();
+    if (!vipCode.trim()) {
+        setError('Kode VIP tidak boleh kosong');
+        return;
+    }
+
+    setIsLoading(true);
+    setError('');
+
+    try {
+        // Validasi kode via API
+        const validateResponse = await fetch('http://localhost:3001/api/validate-vip', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: vipCode })
+        });
+
+        const validateResult = await validateResponse.json();
+
+        if (!validateResult.valid) {
+            setError(validateResult.message);
             return;
         }
 
-        setIsLoading(true);
-        setError('');
+        // Aktivasi kode via API
+        const activateResponse = await fetch('http://localhost:3001/api/activate-vip', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                code: vipCode,
+                userInfo: navigator.userAgent 
+            })
+        });
 
-        // Simulate API call delay
-        await new Promise(resolve => setTimeout(resolve, 500));
+        const activateResult = await activateResponse.json();
 
-        try {
-            const isValid = securityService.validateVIPCode(vipCode);
-            
-            if (isValid) {
-                securityService.activateVIP();
-                onSuccess();
-                setVipCode('');
-            } else {
-                setError('Kode VIP tidak valid!');
-                setVipCode('');
-            }
-        } catch (err) {
-            setError('Terjadi kesalahan sistem');
-        } finally {
-            setIsLoading(false);
+        if (activateResult.success) {
+            securityService.activateVIP();
+            onSuccess();
+            setVipCode('');
+        } else {
+            setError(activateResult.message);
         }
-    };
+
+    } catch (err) {
+        setError('Terjadi kesalahan sistem. Silakan coba lagi.');
+        console.error('VIP Activation Error:', err);
+    } finally {
+        setIsLoading(false);
+    }
+};
 
     const handleSubscribe = () => {
         // Redirect ke Telegram admin
