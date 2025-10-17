@@ -2,6 +2,7 @@
 import express from 'express';
 import axios from 'axios';
 import cors from 'cors';
+import { tokenConfig } from './config.js'; // Import dari config.js
 
 const app = express();
 const PORT = 3001;
@@ -18,7 +19,7 @@ let tokenCache = {
 const CACHE_DURATION_MS = 30 * 60 * 1000; // 30 menit
 
 // Fungsi untuk mendapatkan token dengan error handling yang lebih baik
-const getCachedToken = async ({ forceRefresh = false } = {}) => { // <-- Tambahkan parameter forceRefresh
+const getCachedToken = async ({ forceRefresh = false } = {}) => {
     const now = Date.now();
     
     // Cek cache, TAPI abaikan jika forceRefresh true
@@ -29,25 +30,28 @@ const getCachedToken = async ({ forceRefresh = false } = {}) => { // <-- Tambahk
 
     try {
         console.log(forceRefresh ? "[LOG] MEMAKSA mengambil token baru..." : "[LOG] Mengambil token baru (cache expired)...");
-        const res = await axios.get("http://web.rsmediazero.my.id/dramabox", {
-            timeout: 10000 
-        });
         
-        if (!res.data || !res.data.data.token || !res.data.data.deviceId) {
-            throw new Error("Response token tidak valid");
+        // GUNAKAN DATA DARI config.js BUKAN DARI API EKSTERNAL
+        const tokenData = {
+            token: tokenConfig.token,
+            deviceId: tokenConfig.deviceId
+        };
+        
+        if (!tokenData.token || !tokenData.deviceId) {
+            throw new Error("Token atau deviceId tidak valid di config.js");
         }
         
         // Update cache
         tokenCache = {
-            data: res.data.data,
+            data: tokenData,
             timestamp: Date.now()
         };
         
-        console.log("[LOG] Token baru berhasil disimpan ke cache.");
+        console.log("[LOG] Token dari config.js berhasil disimpan ke cache.");
         return tokenCache.data;
         
     } catch (error) {
-        console.error("[ERROR] Gagal mendapatkan token:", error.message);
+        console.error("[ERROR] Gagal mendapatkan token dari config.js:", error.message);
         
         // Jika masih ada token lama (meskipun expired), coba gunakan dulu
         if (tokenCache.data) {
@@ -107,7 +111,6 @@ app.post('/api/latest', async (req, res) => {
             // PANGGILAN NORMAL (MENGGUNAKAN CACHE)
             const gettoken = await getCachedToken(); // <-- TANPA forceRefresh
             const url = "https://sapi.dramaboxdb.com/drama-box/he001/theater";
-            // ... sisa kode di endpoint ini tetap sama
             const headers = createHeaders(gettoken);
             const page = req.body.pageNo || 1;
             console.log(`[LOG] POST /api/latest: Halaman ${page}`);
@@ -132,12 +135,19 @@ app.post('/api/latest', async (req, res) => {
 
 // 2. Endpoint untuk pencarian
 app.post('/api/search', async (req, res) => {
-    // ... (validasi keyword tetap sama)
+    const { keyword } = req.body;
+    
+    if (!keyword || keyword.trim() === '') {
+        return res.status(400).json({ 
+            success: false, 
+            message: "Keyword pencarian diperlukan." 
+        });
+    }
+
     try {
         const requestFn = async () => {
             // PANGGILAN NORMAL (MENGGUNAKAN CACHE)
             const gettoken = await getCachedToken(); // <-- TANPA forceRefresh
-            // ... sisa kode di endpoint ini tetap sama
             const url = "https://sapi.dramaboxdb.com/drama-box/search/suggest";
             const headers = createHeaders(gettoken);
             const data = { keyword: req.body.keyword };
@@ -293,14 +303,29 @@ app.get('/health', (req, res) => {
     res.json({ 
         status: 'OK', 
         timestamp: new Date().toISOString(),
-        tokenCacheAge: Date.now() - tokenCache.timestamp 
+        tokenCacheAge: Date.now() - tokenCache.timestamp,
+        tokenSource: 'config.js'
     });
 });
 
-/*
+// Endpoint untuk melihat info token
+app.get('/token-info', (req, res) => {
+    const isCached = tokenCache.data && (Date.now() - tokenCache.timestamp < CACHE_DURATION_MS);
+    
+    res.json({
+        cached: isCached,
+        cacheAge: tokenCache.timestamp ? Date.now() - tokenCache.timestamp : null,
+        tokenExists: !!tokenCache.data,
+        deviceIdExists: !!tokenCache.data?.deviceId,
+        lastUpdated: tokenCache.timestamp ? new Date(tokenCache.timestamp).toISOString() : null
+    });
+});
+
 app.listen(PORT, () => {
     console.log(`🚀 Backend proxy berjalan di http://localhost:${PORT}`);
     console.log(`📊 Health check tersedia di http://localhost:${PORT}/health`);
+    console.log(`🔑 Token info tersedia di http://localhost:${PORT}/token-info`);
+    console.log(`📁 Sumber token: config.js`);
 });
-*/
+
 export default app;
