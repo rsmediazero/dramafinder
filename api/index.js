@@ -98,7 +98,7 @@ const retryRequest = async (requestFn, maxRetries = 2) => {
     }
 };
 
-// 1. Endpoint untuk mendapatkan drama terbaru - DIPERBAIKI
+// 1. Endpoint untuk mendapatkan drama terbaru - DIPERBAIKI UNTUK STRUKTUR BARU
 app.post('/api/latest', async (req, res) => {
     try {
         const requestFn = async () => {
@@ -117,90 +117,73 @@ app.post('/api/latest', async (req, res) => {
                 channelId: 43
             };
             
-            console.log(`[LATEST] Request data:`, JSON.stringify(data));
-            
             const response = await axios.post(url, data, { 
                 headers, 
                 timeout: 15000 
             });
             
             console.log(`[LATEST] Response status: ${response.status}`);
-            console.log(`[LATEST] Full response structure:`, Object.keys(response.data));
-            
-            // DEBUG: Log seluruh response untuk analisis
-            if (response.data) {
-                console.log(`[LATEST] Response success:`, response.data.success);
-                console.log(`[LATEST] Response message:`, response.data.message);
-                console.log(`[LATEST] Response status:`, response.data.status);
-                
-                // Cari field yang berisi data drama
-                const allKeys = Object.keys(response.data);
-                const possibleDataKeys = allKeys.filter(key => {
-                    const value = response.data[key];
-                    return value && typeof value === 'object' && !['status', 'message', 'timestamp', 'ip', 'region', 'path', 'success'].includes(key);
-                });
-                
-                console.log(`[LATEST] Possible data keys:`, possibleDataKeys);
-                
-                if (possibleDataKeys.length > 0) {
-                    possibleDataKeys.forEach(key => {
-                        console.log(`[LATEST] Key "${key}":`, typeof response.data[key], Array.isArray(response.data[key]) ? `Array(${response.data[key].length})` : 'Not array');
-                        if (Array.isArray(response.data[key]) && response.data[key].length > 0) {
-                            console.log(`[LATEST] Contoh item dari "${key}":`, response.data[key][0]);
-                        }
-                    });
-                }
-            }
             
             return response;
         };
 
         const response = await retryRequest(requestFn);
+        const responseData = response.data;
         
-        // Handle berbagai kemungkinan struktur response
+        // Handle struktur response yang sebenarnya
         let dramaList = [];
-        let responseData = response.data;
         
-        if (responseData) {
-            // Coba berbagai kemungkinan struktur
-            if (responseData.data && Array.isArray(responseData.data)) {
-                // Struktur: { data: [...] }
-                dramaList = responseData.data;
-            } else if (responseData.data && responseData.data.list && Array.isArray(responseData.data.list)) {
-                // Struktur: { data: { list: [...] } }
-                dramaList = responseData.data.list;
-            } else if (responseData.list && Array.isArray(responseData.list)) {
-                // Struktur: { list: [...] }
-                dramaList = responseData.list;
-            } else if (responseData.books && Array.isArray(responseData.books)) {
-                // Struktur: { books: [...] }
-                dramaList = responseData.books;
-            } else {
-                // Cari field array pertama yang berisi data
-                const keys = Object.keys(responseData);
-                const arrayKey = keys.find(key => Array.isArray(responseData[key]) && 
-                    key !== 'message' && 
-                    key !== 'status' && 
-                    !key.includes('time'));
+        if (responseData && responseData.data) {
+            // Struktur: data.columnVoList[].bookList[]
+            if (responseData.data.columnVoList && Array.isArray(responseData.data.columnVoList)) {
+                // Extract semua bookList dari semua columnVoList
+                responseData.data.columnVoList.forEach(column => {
+                    if (column.bookList && Array.isArray(column.bookList)) {
+                        dramaList = dramaList.concat(column.bookList);
+                    }
+                });
                 
-                if (arrayKey) {
-                    dramaList = responseData[arrayKey];
-                    console.log(`[LATEST] Menggunakan data dari key: ${arrayKey}`);
-                }
+                console.log(`[LATEST] Berhasil mengekstrak ${dramaList.length} drama dari ${responseData.data.columnVoList.length} kolom`);
+            }
+            
+            // Juga cek recommendList jika ada
+            if (responseData.data.recommendList && responseData.data.recommendList.records && Array.isArray(responseData.data.recommendList.records)) {
+                const recommendDramas = responseData.data.recommendList.records.filter(item => item.bookId);
+                dramaList = dramaList.concat(recommendDramas);
+                console.log(`[LATEST] Ditambahkan ${recommendDramas.length} drama dari rekomendasi`);
             }
         }
         
-        console.log(`[LATEST] Final drama list: ${dramaList.length} items`);
+        // Hapus duplikat berdasarkan bookId
+        const uniqueDramas = [];
+        const seenBookIds = new Set();
+        
+        dramaList.forEach(drama => {
+            if (drama.bookId && !seenBookIds.has(drama.bookId)) {
+                seenBookIds.add(drama.bookId);
+                uniqueDramas.push(drama);
+            }
+        });
+        
+        console.log(`[LATEST] Final unique dramas: ${uniqueDramas.length} items`);
+        
+        if (uniqueDramas.length > 0) {
+            console.log(`[LATEST] Contoh drama pertama:`, {
+                id: uniqueDramas[0].bookId,
+                name: uniqueDramas[0].bookName,
+                cover: uniqueDramas[0].coverWap,
+                episodes: uniqueDramas[0].chapterCount
+            });
+        }
         
         // Format response yang konsisten
         res.json({
             success: true,
             data: {
-                list: dramaList,
-                total: dramaList.length,
+                list: uniqueDramas,
+                total: uniqueDramas.length,
                 page: req.body.pageNo || 1
-            },
-            originalResponse: responseData // Untuk debugging
+            }
         });
         
     } catch (error) {
@@ -246,98 +229,64 @@ app.post('/api/search', async (req, res) => {
             const headers = createHeaders(gettoken);
             const data = { keyword: keyword.trim() };
             
-            console.log(`[SEARCH] Mengirim request...`);
-            console.log(`[SEARCH] Request data:`, data);
-            
             const response = await axios.post(url, data, { 
                 headers, 
                 timeout: 15000 
             });
             
             console.log(`[SEARCH] Response status: ${response.status}`);
-            console.log(`[SEARCH] Full response keys:`, Object.keys(response.data));
-            
-            // DEBUG: Log detail response
-            if (response.data) {
-                console.log(`[SEARCH] Response success:`, response.data.success);
-                console.log(`[SEARCH] Response message:`, response.data.message);
-                
-                // Cari semua keys yang mungkin berisi data
-                const allKeys = Object.keys(response.data);
-                console.log(`[SEARCH] All keys in response:`, allKeys);
-                
-                allKeys.forEach(key => {
-                    const value = response.data[key];
-                    if (value && typeof value === 'object') {
-                        console.log(`[SEARCH] Key "${key}":`, Array.isArray(value) ? `Array(${value.length})` : 'Object');
-                        if (Array.isArray(value) && value.length > 0) {
-                            console.log(`[SEARCH] Contoh dari "${key}":`, value[0]);
-                        }
-                    }
-                });
-            }
             
             return response;
         };
 
         const response = await retryRequest(requestFn);
+        const responseData = response.data;
         
-        // Handle berbagai kemungkinan struktur response
+        // Handle struktur response pencarian
         let searchResults = [];
-        let responseData = response.data;
         
-        if (responseData) {
-            // Coba berbagai kemungkinan struktur
-            if (Array.isArray(responseData)) {
-                // Struktur: [...]
-                searchResults = responseData;
-            } else if (responseData.data && Array.isArray(responseData.data)) {
-                // Struktur: { data: [...] }
+        if (responseData && responseData.data) {
+            if (Array.isArray(responseData.data)) {
+                // Struktur langsung array
                 searchResults = responseData.data;
-            } else if (responseData.data && responseData.data.list && Array.isArray(responseData.data.list)) {
+            } else if (responseData.data.list && Array.isArray(responseData.data.list)) {
                 // Struktur: { data: { list: [...] } }
                 searchResults = responseData.data.list;
-            } else if (responseData.list && Array.isArray(responseData.list)) {
-                // Struktur: { list: [...] }
-                searchResults = responseData.list;
-            } else if (responseData.suggest && Array.isArray(responseData.suggest)) {
-                // Struktur: { suggest: [...] }
-                searchResults = responseData.suggest;
-            } else if (responseData.results && Array.isArray(responseData.results)) {
-                // Struktur: { results: [...] }
-                searchResults = responseData.results;
+            } else if (responseData.data.books && Array.isArray(responseData.data.books)) {
+                // Struktur: { data: { books: [...] } }
+                searchResults = responseData.data.books;
             } else {
-                // Cari field array pertama yang berisi data
-                const keys = Object.keys(responseData);
-                const arrayKey = keys.find(key => 
-                    Array.isArray(responseData[key]) && 
-                    responseData[key].length > 0 &&
-                    typeof responseData[key][0] === 'object' &&
-                    responseData[key][0].bookId !== undefined
-                );
-                
+                // Cari field array pertama
+                const keys = Object.keys(responseData.data);
+                const arrayKey = keys.find(key => Array.isArray(responseData.data[key]));
                 if (arrayKey) {
-                    searchResults = responseData[arrayKey];
-                    console.log(`[SEARCH] Menggunakan data dari key: ${arrayKey}`);
+                    searchResults = responseData.data[arrayKey];
                 }
             }
         }
         
         console.log(`[SEARCH] Final results: ${searchResults.length} items`);
         
+        if (searchResults.length > 0) {
+            console.log(`[SEARCH] Contoh hasil pertama:`, {
+                id: searchResults[0].bookId,
+                name: searchResults[0].bookName,
+                cover: searchResults[0].coverWap
+            });
+        }
+        
         // Return response yang konsisten
         res.json({
             success: true,
             data: searchResults,
-            keyword: keyword,
-            originalResponse: responseData // Untuk debugging
+            keyword: keyword
         });
         
     } catch (error) {
         console.error("[ERROR] /api/search:", error.message);
         
         if (error.response) {
-            console.error("[ERROR] Response error:`, {
+            console.error("[ERROR] Response error:", {
                 status: error.response.status,
                 data: error.response.data
             });
@@ -353,7 +302,7 @@ app.post('/api/search', async (req, res) => {
     }
 });
 
-// 3. Endpoint untuk mendapatkan link stream
+// 3. Endpoint untuk mendapatkan link stream - TETAP SAMA
 app.post('/api/stream-link', async (req, res) => {
     const { bookId } = req.body;
     if (!bookId) {
@@ -387,24 +336,12 @@ app.post('/api/stream-link', async (req, res) => {
 
             const initialRequestData = { ...baseData, index: 1 };
             
-            console.log(`[STREAM] Mengirim request...`);
-            
             const response = await axios.post(url, initialRequestData, { 
                 headers,
                 timeout: 20000 
             });
             
             console.log(`[STREAM] Response status: ${response.status}`);
-            
-            // DEBUG: Log response structure
-            if (response.data) {
-                console.log(`[STREAM] Response keys:`, Object.keys(response.data));
-                if (response.data.data) {
-                    console.log(`[STREAM] Data keys:`, Object.keys(response.data.data));
-                    console.log(`[STREAM] Chapter count:`, response.data.data.chapterCount);
-                    console.log(`[STREAM] Chapter list length:`, response.data.data.chapterList ? response.data.data.chapterList.length : 0);
-                }
-            }
             
             return response;
         };
@@ -451,8 +388,6 @@ app.post('/api/stream-link', async (req, res) => {
                     index: nextIndex 
                 };
                 
-                console.log(`[STREAM] Request tambahan index: ${nextIndex}`);
-                
                 const response = await axios.post(
                     "https://sapi.dramaboxdb.com/drama-box/chapterv2/batch/load", 
                     requestData, 
@@ -472,19 +407,17 @@ app.post('/api/stream-link', async (req, res) => {
                 const chapterList = response.data && response.data.data ? response.data.data.chapterList : null;
                 if (chapterList) {
                     allEpisodes.push(...chapterList);
-                    console.log(`[STREAM] Ditambahkan ${chapterList.length} episode`);
                 }
             });
         }
 
-        // Process episodes dengan error handling
+        // Process episodes
         const processedEpisodes = allEpisodes.map((chapter, index) => {
             try {
                 const cdnData = chapter.cdnList ? chapter.cdnList[0] : null;
                 const videoList = cdnData ? cdnData.videoPathList : null;
                 
                 if (!videoList || videoList.length === 0) {
-                    console.log(`[STREAM] Episode ${index} tidak memiliki video list`);
                     return null;
                 }
                 
@@ -497,7 +430,6 @@ app.post('/api/stream-link', async (req, res) => {
                 }
                 
                 if (!streamUrl) {
-                    console.log(`[STREAM] Episode ${index} tidak memiliki URL`);
                     return null;
                 }
                 
@@ -552,76 +484,11 @@ app.get('/health', (req, res) => {
     });
 });
 
-// Endpoint untuk debug response structure
-app.post('/api/debug-structure', async (req, res) => {
-    const { endpoint, data } = req.body;
-    
-    if (!endpoint) {
-        return res.status(400).json({ 
-            success: false, 
-            message: "Endpoint diperlukan." 
-        });
-    }
-
-    try {
-        const gettoken = await getCachedToken();
-        const headers = createHeaders(gettoken);
-        const requestData = data || {};
-        
-        console.log(`[DEBUG] Testing endpoint: ${endpoint}`);
-        console.log(`[DEBUG] Request data:`, requestData);
-        
-        const response = await axios.post(endpoint, requestData, { 
-            headers, 
-            timeout: 15000 
-        });
-        
-        console.log(`[DEBUG] Full response for ${endpoint}:`, JSON.stringify(response.data, null, 2));
-        
-        // Analisis struktur
-        const analyzeObject = (obj, path = 'root') => {
-            const result = {
-                path: path,
-                type: typeof obj,
-                isArray: Array.isArray(obj),
-                keys: Array.isArray(obj) ? `Array(${obj.length})` : Object.keys(obj)
-            };
-            
-            if (Array.isArray(obj) && obj.length > 0) {
-                result.firstItem = analyzeObject(obj[0], `${path}[0]`);
-            } else if (typeof obj === 'object' && obj !== null) {
-                result.children = {};
-                Object.keys(obj).forEach(key => {
-                    result.children[key] = analyzeObject(obj[key], `${path}.${key}`);
-                });
-            }
-            
-            return result;
-        };
-        
-        res.json({
-            success: true,
-            endpoint: endpoint,
-            requestData: requestData,
-            responseStatus: response.status,
-            fullResponse: response.data,
-            structureAnalysis: analyzeObject(response.data)
-        });
-        
-    } catch (error) {
-        console.error("[DEBUG] Error:", error.message);
-        res.json({
-            success: false,
-            error: error.message,
-            response: error.response ? error.response.data : null
-        });
-    }
-});
-
 app.listen(PORT, () => {
     console.log(`🚀 Backend proxy berjalan di http://localhost:${PORT}`);
     console.log(`📊 Health check: http://localhost:${PORT}/health`);
-    console.log(`🐛 Debug structure: http://localhost:${PORT}/api/debug-structure`);
+    console.log(`🎬 Latest dramas: POST http://localhost:${PORT}/api/latest`);
+    console.log(`🔍 Search: POST http://localhost:${PORT}/api/search`);
     console.log(`📁 Sumber token: config.js`);
 });
 
