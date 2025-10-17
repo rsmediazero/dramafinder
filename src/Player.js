@@ -37,8 +37,23 @@ export default function Player() {
     const [error, setError] = useState(null);
     const [videoError, setVideoError] = useState(null);
     
+    // Fungsi untuk mendapatkan drama info dari location state atau membuat default
+    const getDramaInfo = useCallback(() => {
+        if (location.state && location.state.dramaInfo) {
+            return location.state.dramaInfo;
+        }
+        
+        // Fallback: buat info dasar dari bookId
+        return {
+            id: bookId,
+            title: `Drama ${bookId}`,
+            description: "Informasi drama sedang dimuat...",
+            category: "Drama"
+        };
+    }, [location.state, bookId]);
+    
     // Fungsi untuk fetch data drama dan episode
-    const fetchDramaData = async (targetBookId) => {
+    const fetchDramaData = useCallback(async (targetBookId) => {
         setIsLoading(true);
         setError(null);
         setVideoError(null);
@@ -76,22 +91,7 @@ export default function Player() {
             console.error(`[Player] Error fetch drama data:`, err);
             throw err;
         }
-    };
-    
-    // Fungsi untuk mendapatkan drama info dari location state atau membuat default
-    const getDramaInfo = () => {
-        if (location.state && location.state.dramaInfo) {
-            return location.state.dramaInfo;
-        }
-        
-        // Fallback: buat info dasar dari bookId
-        return {
-            id: bookId,
-            title: `Drama ${bookId}`,
-            description: "Informasi drama sedang dimuat...",
-            category: "Drama"
-        };
-    };
+    }, []);
     
     // Effect utama untuk handle data loading
     useEffect(() => {
@@ -155,7 +155,7 @@ export default function Player() {
         };
         
         initializePlayer();
-    }, [bookId, location.state]);
+    }, [bookId, location.state, getDramaInfo, fetchDramaData]);
     
     // Fungsi untuk retry
     const handleRetry = useCallback(() => {
