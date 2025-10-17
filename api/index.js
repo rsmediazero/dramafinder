@@ -22,7 +22,6 @@ const CACHE_DURATION_MS = 30 * 60 * 1000; // 30 menit
 const getCachedToken = async ({ forceRefresh = false } = {}) => {
     const now = Date.now();
     
-    // Cek cache, TAPI abaikan jika forceRefresh true
     if (!forceRefresh && tokenCache.data && (now - tokenCache.timestamp < CACHE_DURATION_MS)) {
         console.log("[LOG] Menggunakan token dari cache.");
         return tokenCache.data;
@@ -31,7 +30,6 @@ const getCachedToken = async ({ forceRefresh = false } = {}) => {
     try {
         console.log(forceRefresh ? "[LOG] MEMAKSA mengambil token baru..." : "[LOG] Mengambil token baru (cache expired)...");
         
-        // GUNAKAN DATA DARI config.js BUKAN DARI API EKSTERNAL
         const tokenData = {
             token: tokenConfig.token,
             deviceId: tokenConfig.deviceId
@@ -41,22 +39,17 @@ const getCachedToken = async ({ forceRefresh = false } = {}) => {
             throw new Error("Token atau deviceId tidak valid di config.js");
         }
         
-        // Update cache
         tokenCache = {
             data: tokenData,
             timestamp: Date.now()
         };
         
         console.log("[LOG] Token dari config.js berhasil disimpan ke cache.");
-        console.log("[LOG] Token:", tokenData.token.substring(0, 20) + "...");
-        console.log("[LOG] Device ID:", tokenData.deviceId);
-        
         return tokenCache.data;
         
     } catch (error) {
         console.error("[ERROR] Gagal mendapatkan token dari config.js:", error.message);
         
-        // Jika masih ada token lama (meskipun expired), coba gunakan dulu
         if (tokenCache.data) {
             console.log("[LOG] Menggunakan token lama karena gagal refresh.");
             return tokenCache.data;
@@ -95,13 +88,11 @@ const retryRequest = async (requestFn, maxRetries = 2) => {
                 throw error;
             }
             
-            // Force refresh token untuk retry berikutnya
-            if (error.response?.status === 401 || error.response?.status === 403) {
+            if (error.response && (error.response.status === 401 || error.response.status === 403)) {
                 console.log("[LOG] Token mungkin invalid, force refresh...");
-                tokenCache.timestamp = 0; // Reset timestamp untuk force refresh
+                tokenCache.timestamp = 0;
             }
             
-            // Tunggu sebentar sebelum retry
             await new Promise(resolve => setTimeout(resolve, 1000));
         }
     }
@@ -116,9 +107,7 @@ app.post('/api/latest', async (req, res) => {
             const headers = createHeaders(gettoken);
             const page = req.body.pageNo || 1;
             
-            console.log(`[LATEST] Halaman: ${page}`);
-            console.log(`[LATEST] Token: ${gettoken.token ? '✅' : '❌'}`);
-            console.log(`[LATEST] Device ID: ${gettoken.deviceId ? '✅' : '❌'}`);
+            console.log(`[LATEST] Request halaman: ${page}`);
             
             const data = {
                 newChannelStyle: 1,
@@ -128,20 +117,49 @@ app.post('/api/latest', async (req, res) => {
                 channelId: 43
             };
             
-            console.log(`[LATEST] Request data:`, JSON.stringify(data).substring(0, 100) + "...");
-            
             const response = await axios.post(url, data, { 
                 headers, 
                 timeout: 15000 
             });
             
             console.log(`[LATEST] Response status: ${response.status}`);
-            console.log(`[LATEST] Data received: ${response.data ? '✅' : '❌'}`);
+            
+            // DEBUG: Log struktur response
+            if (response.data) {
+                console.log(`[LATEST] Response keys:`, Object.keys(response.data));
+                if (response.data.data) {
+                    console.log(`[LATEST] Data keys:`, Object.keys(response.data.data));
+                    if (response.data.data.list) {
+                        console.log(`[LATEST] Jumlah drama: ${response.data.data.list.length}`);
+                        if (response.data.data.list.length > 0) {
+                            console.log(`[LATEST] Contoh drama pertama:`, {
+                                id: response.data.data.list[0].bookId,
+                                name: response.data.data.list[0].bookName,
+                                cover: response.data.data.list[0].verticalCover
+                            });
+                        }
+                    }
+                }
+            }
             
             return response;
         };
 
         const response = await retryRequest(requestFn);
+        
+        // Pastikan response memiliki struktur yang diharapkan
+        if (!response.data || !response.data.data || !response.data.data.list) {
+            console.warn("[WARNING] Struktur response tidak sesuai ekspektasi");
+            // Return empty array instead of error
+            return res.json({
+                success: true,
+                data: {
+                    list: [],
+                    total: 0
+                }
+            });
+        }
+        
         res.json(response.data);
         
     } catch (error) {
@@ -154,11 +172,13 @@ app.post('/api/latest', async (req, res) => {
             });
         }
         
-        res.status(500).json({ 
-            success: false, 
-            message: "Gagal mengambil data drama terbaru.", 
-            error: error.message,
-            details: error.response?.data || null
+        // Return empty data instead of error
+        res.json({
+            success: true,
+            data: {
+                list: [],
+                total: 0
+            }
         });
     }
 });
@@ -179,17 +199,11 @@ app.post('/api/search', async (req, res) => {
         
         const requestFn = async () => {
             const gettoken = await getCachedToken();
-            console.log(`[SEARCH] Token: ${gettoken.token ? '✅ Ada' : '❌ Tidak ada'}`);
-            console.log(`[SEARCH] Device ID: ${gettoken.deviceId ? '✅ Ada' : '❌ Tidak ada'}`);
-            
             const url = "https://sapi.dramaboxdb.com/drama-box/search/suggest";
             const headers = createHeaders(gettoken);
-            
-            console.log(`[SEARCH] Headers tn: ${headers.tn ? '✅ Ada' : '❌ Tidak ada'}`);
-            console.log(`[SEARCH] Headers device-id: ${headers['device-id'] ? '✅ Ada' : '❌ Tidak ada'}`);
-            
             const data = { keyword: keyword.trim() };
-            console.log(`[SEARCH] Request data:`, data);
+            
+            console.log(`[SEARCH] Mengirim request...`);
             
             const response = await axios.post(url, data, { 
                 headers, 
@@ -197,11 +211,27 @@ app.post('/api/search', async (req, res) => {
             });
             
             console.log(`[SEARCH] Response status: ${response.status}`);
-            console.log(`[SEARCH] Response data keys:`, Object.keys(response.data));
             
-            if (response.data && response.data.data) {
-                console.log(`[SEARCH] Jumlah hasil: ${response.data.data.length || 0}`);
-                console.log(`[SEARCH] Hasil:`, response.data.data.slice(0, 3)); // Log 3 hasil pertama
+            // DEBUG: Log detail response
+            if (response.data) {
+                console.log(`[SEARCH] Response keys:`, Object.keys(response.data));
+                console.log(`[SEARCH] Response success:`, response.data.success);
+                console.log(`[SEARCH] Response message:`, response.data.message);
+                
+                if (response.data.data) {
+                    console.log(`[SEARCH] Tipe data:`, Array.isArray(response.data.data) ? 'Array' : typeof response.data.data);
+                    console.log(`[SEARCH] Jumlah hasil:`, Array.isArray(response.data.data) ? response.data.data.length : 'Bukan array');
+                    
+                    if (Array.isArray(response.data.data) && response.data.data.length > 0) {
+                        console.log(`[SEARCH] Contoh hasil pertama:`, {
+                            id: response.data.data[0].bookId,
+                            name: response.data.data[0].bookName,
+                            cover: response.data.data[0].verticalCover
+                        });
+                    } else if (response.data.data && typeof response.data.data === 'object') {
+                        console.log(`[SEARCH] Data object keys:`, Object.keys(response.data.data));
+                    }
+                }
             }
             
             return response;
@@ -209,29 +239,53 @@ app.post('/api/search', async (req, res) => {
 
         const response = await retryRequest(requestFn);
         
-        if (!response.data) {
-            throw new Error("Response tidak memiliki data");
+        // Handle berbagai kemungkinan struktur response
+        let searchResults = [];
+        
+        if (response.data && response.data.data) {
+            if (Array.isArray(response.data.data)) {
+                // Struktur: { data: [...] }
+                searchResults = response.data.data;
+            } else if (response.data.data.list && Array.isArray(response.data.data.list)) {
+                // Struktur: { data: { list: [...] } }
+                searchResults = response.data.data.list;
+            } else if (response.data.data.books && Array.isArray(response.data.data.books)) {
+                // Struktur: { data: { books: [...] } }
+                searchResults = response.data.data.books;
+            } else {
+                // Coba ekstrak array dari object
+                const keys = Object.keys(response.data.data);
+                const arrayKey = keys.find(key => Array.isArray(response.data.data[key]));
+                if (arrayKey) {
+                    searchResults = response.data.data[arrayKey];
+                }
+            }
         }
         
-        res.json(response.data);
+        console.log(`[SEARCH] Final results: ${searchResults.length} items`);
+        
+        // Return response yang konsisten
+        res.json({
+            success: true,
+            data: searchResults,
+            originalResponse: response.data // Untuk debugging
+        });
         
     } catch (error) {
         console.error("[ERROR] /api/search:", error.message);
-        console.error("[ERROR] Stack:`, error.stack);
         
         if (error.response) {
             console.error("[ERROR] Response error:", {
                 status: error.response.status,
-                data: error.response.data,
-                headers: error.response.headers
+                data: error.response.data
             });
         }
         
-        res.status(500).json({ 
-            success: false, 
-            message: "Gagal melakukan pencarian.", 
-            error: error.message,
-            details: error.response?.data || null
+        // Return empty results instead of error
+        res.json({
+            success: true,
+            data: [],
+            error: error.message
         });
     }
 });
@@ -254,9 +308,6 @@ app.post('/api/stream-link', async (req, res) => {
             const url = "https://sapi.dramaboxdb.com/drama-box/chapterv2/batch/load";
             const headers = createHeaders(gettoken);
             
-            console.log(`[STREAM] Token: ${gettoken.token ? '✅' : '❌'}`);
-            console.log(`[STREAM] Device ID: ${gettoken.deviceId ? '✅' : '❌'}`);
-            
             const baseData = {
                 boundaryIndex: 0,
                 comingPlaySectionId: -1,
@@ -273,21 +324,35 @@ app.post('/api/stream-link', async (req, res) => {
 
             const initialRequestData = { ...baseData, index: 1 };
             
-            console.log(`[STREAM] Request data:`, JSON.stringify(initialRequestData));
+            console.log(`[STREAM] Mengirim request...`);
             
-            return await axios.post(url, initialRequestData, { 
+            const response = await axios.post(url, initialRequestData, { 
                 headers,
                 timeout: 20000 
             });
+            
+            console.log(`[STREAM] Response status: ${response.status}`);
+            
+            // DEBUG: Log response structure
+            if (response.data && response.data.data) {
+                console.log(`[STREAM] Data keys:`, Object.keys(response.data.data));
+                console.log(`[STREAM] Chapter count:`, response.data.data.chapterCount);
+                console.log(`[STREAM] Chapter list length:`, response.data.data.chapterList ? response.data.data.chapterList.length : 0);
+            }
+            
+            return response;
         };
 
         const initialResponse = await retryRequest(requestFn);
-        const initialData = initialResponse.data?.data;
-        
-        console.log(`[STREAM] Initial response:`, initialData ? '✅' : '❌');
+        const initialData = initialResponse.data ? initialResponse.data.data : null;
         
         if (!initialData || !initialData.chapterList || initialData.chapterList.length === 0) {
-            throw new Error("Daftar episode tidak ditemukan.");
+            console.warn(`[STREAM] Tidak ada episode ditemukan untuk bookId: ${bookId}`);
+            return res.json({ 
+                success: true, 
+                episodes: [],
+                bookId: bookId 
+            });
         }
 
         const firstBatch = initialData.chapterList;
@@ -322,11 +387,13 @@ app.post('/api/stream-link', async (req, res) => {
                 
                 console.log(`[STREAM] Request tambahan index: ${nextIndex}`);
                 
-                return await axios.post(
+                const response = await axios.post(
                     "https://sapi.dramaboxdb.com/drama-box/chapterv2/batch/load", 
                     requestData, 
                     { headers, timeout: 20000 }
                 );
+                
+                return response;
             };
 
             const requests = [];
@@ -336,7 +403,7 @@ app.post('/api/stream-link', async (req, res) => {
 
             const additionalResponses = await Promise.all(requests);
             additionalResponses.forEach(response => {
-                const chapterList = response.data?.data?.chapterList;
+                const chapterList = response.data && response.data.data ? response.data.data.chapterList : null;
                 if (chapterList) {
                     allEpisodes.push(...chapterList);
                     console.log(`[STREAM] Ditambahkan ${chapterList.length} episode`);
@@ -344,20 +411,39 @@ app.post('/api/stream-link', async (req, res) => {
             });
         }
 
-        // Process episodes
-        const processedEpisodes = allEpisodes.map(chapter => {
-            const cdnData = chapter.cdnList?.[0];
-            const videoList = cdnData?.videoPathList;
-            
-            if (!videoList || videoList.length === 0) return null;
-            
-            let streamUrl = videoList.find(video => video.isDefault === 1)?.videoPath || videoList[0]?.videoPath;
-            
-            return {
-                episodeNumber: chapter.chapterId,
-                title: chapter.chapterName,
-                url: streamUrl,
-            };
+        // Process episodes dengan error handling
+        const processedEpisodes = allEpisodes.map((chapter, index) => {
+            try {
+                const cdnData = chapter.cdnList ? chapter.cdnList[0] : null;
+                const videoList = cdnData ? cdnData.videoPathList : null;
+                
+                if (!videoList || videoList.length === 0) {
+                    console.log(`[STREAM] Episode ${index} tidak memiliki video list`);
+                    return null;
+                }
+                
+                let streamUrl = null;
+                const defaultVideo = videoList.find(video => video.isDefault === 1);
+                if (defaultVideo && defaultVideo.videoPath) {
+                    streamUrl = defaultVideo.videoPath;
+                } else if (videoList[0] && videoList[0].videoPath) {
+                    streamUrl = videoList[0].videoPath;
+                }
+                
+                if (!streamUrl) {
+                    console.log(`[STREAM] Episode ${index} tidak memiliki URL`);
+                    return null;
+                }
+                
+                return {
+                    episodeNumber: chapter.chapterId || index + 1,
+                    title: chapter.chapterName || `Episode ${index + 1}`,
+                    url: streamUrl,
+                };
+            } catch (error) {
+                console.log(`[STREAM] Error processing episode ${index}:`, error.message);
+                return null;
+            }
         }).filter(ep => ep && ep.url);
 
         processedEpisodes.sort((a, b) => a.episodeNumber - b.episodeNumber);
@@ -373,15 +459,11 @@ app.post('/api/stream-link', async (req, res) => {
     } catch (error) {
         console.error(`[ERROR] /api/stream-link untuk bookId ${bookId}:`, error.message);
         
-        const errorMessage = error.response ? 
-            `API Error: ${error.response.status} - ${JSON.stringify(error.response.data)}` : 
-            error.message;
-            
-        res.status(500).json({ 
-            success: false, 
-            message: "Gagal memproses link stream.", 
-            error: errorMessage,
-            bookId: bookId 
+        res.json({ 
+            success: true, 
+            episodes: [],
+            bookId: bookId,
+            error: error.message
         });
     }
 });
@@ -398,114 +480,55 @@ app.get('/health', (req, res) => {
             age: cacheAge,
             valid: isCacheValid,
             hasToken: !!tokenCache.data,
-            hasDeviceId: !!tokenCache.data?.deviceId
+            hasDeviceId: !!tokenCache.data ? !!tokenCache.data.deviceId : false
         },
         tokenSource: 'config.js'
     });
 });
 
-// Endpoint untuk melihat info token
-app.get('/token-info', (req, res) => {
-    const isCached = tokenCache.data && (Date.now() - tokenCache.timestamp < CACHE_DURATION_MS);
+// Endpoint untuk debug response structure
+app.post('/api/debug-search', async (req, res) => {
+    const { keyword } = req.body;
     
-    res.json({
-        cached: isCached,
-        cacheAge: tokenCache.timestamp ? Date.now() - tokenCache.timestamp : null,
-        tokenExists: !!tokenCache.data,
-        tokenPreview: tokenCache.data?.token ? tokenCache.data.token.substring(0, 20) + "..." : null,
-        deviceId: tokenCache.data?.deviceId || null,
-        deviceIdExists: !!tokenCache.data?.deviceId,
-        lastUpdated: tokenCache.timestamp ? new Date(tokenCache.timestamp).toISOString() : null,
-        config: {
-            tokenExists: !!tokenConfig.token,
-            deviceIdExists: !!tokenConfig.deviceId
-        }
-    });
-});
-
-// Endpoint untuk test token
-app.get('/test-token', async (req, res) => {
-    try {
-        const tokenData = await getCachedToken();
-        const headers = createHeaders(tokenData);
-        
-        // Test request sederhana
-        const testUrl = "https://sapi.dramaboxdb.com/drama-box/he001/theater";
-        const testData = {
-            newChannelStyle: 1,
-            isNeedRank: 1,
-            pageNo: 1,
-            index: 0,
-            channelId: 43
-        };
-        
-        console.log(`[TEST] Testing token dengan request...`);
-        
-        const response = await axios.post(testUrl, testData, { 
-            headers, 
-            timeout: 10000 
-        });
-        
-        console.log(`[TEST] Response status: ${response.status}`);
-        
-        res.json({
-            success: true,
-            token: {
-                exists: !!tokenData.token,
-                deviceId: tokenData.deviceId,
-                length: tokenData.token?.length,
-                preview: tokenData.token?.substring(0, 20) + "..."
-            },
-            testRequest: {
-                status: response.status,
-                hasData: !!response.data,
-                dataStructure: Object.keys(response.data || {})
-            },
-            message: "Token berhasil di-test"
-        });
-        
-    } catch (error) {
-        console.error(`[TEST] Error:`, error.message);
-        
-        res.status(500).json({
-            success: false,
-            error: error.message,
-            response: error.response?.data,
-            tokenInfo: {
-                exists: !!tokenCache.data,
-                deviceId: tokenCache.data?.deviceId
-            }
+    if (!keyword) {
+        return res.status(400).json({ 
+            success: false, 
+            message: "Keyword diperlukan." 
         });
     }
-});
 
-// Endpoint untuk mendapatkan token baru dari sumber asli
-app.get('/get-new-token', async (req, res) => {
     try {
-        console.log("[NEW_TOKEN] Mengambil token baru dari sumber asli...");
-        const response = await axios.get("http://web.rsmediazero.my.id/dramabox", {
-            timeout: 10000 
+        const gettoken = await getCachedToken();
+        const url = "https://sapi.dramaboxdb.com/drama-box/search/suggest";
+        const headers = createHeaders(gettoken);
+        const data = { keyword: keyword.trim() };
+        
+        console.log(`[DEBUG] Request headers:`, headers);
+        console.log(`[DEBUG] Request data:`, data);
+        
+        const response = await axios.post(url, data, { 
+            headers, 
+            timeout: 15000 
         });
         
-        if (!response.data || !response.data.data.token || !response.data.data.deviceId) {
-            throw new Error("Response token tidak valid");
-        }
-        
-        const newToken = response.data.data;
+        console.log(`[DEBUG] Full response:`, JSON.stringify(response.data, null, 2));
         
         res.json({
             success: true,
-            token: newToken.token,
-            deviceId: newToken.deviceId,
-            message: "Token baru berhasil diambil"
+            fullResponse: response.data,
+            structure: {
+                rootKeys: Object.keys(response.data),
+                dataKeys: response.data.data ? Object.keys(response.data.data) : [],
+                dataType: response.data.data ? (Array.isArray(response.data.data) ? 'array' : 'object') : 'null'
+            }
         });
         
     } catch (error) {
-        console.error("[ERROR] Gagal mengambil token baru:", error.message);
-        res.status(500).json({
+        console.error("[DEBUG] Error:", error.message);
+        res.json({
             success: false,
             error: error.message,
-            message: "Gagal mengambil token baru dari sumber asli"
+            response: error.response ? error.response.data : null
         });
     }
 });
@@ -513,9 +536,7 @@ app.get('/get-new-token', async (req, res) => {
 app.listen(PORT, () => {
     console.log(`🚀 Backend proxy berjalan di http://localhost:${PORT}`);
     console.log(`📊 Health check: http://localhost:${PORT}/health`);
-    console.log(`🔑 Token info: http://localhost:${PORT}/token-info`);
-    console.log(`🧪 Test token: http://localhost:${PORT}/test-token`);
-    console.log(`🔄 Get new token: http://localhost:${PORT}/get-new-token`);
+    console.log(`🐛 Debug search: http://localhost:${PORT}/api/debug-search`);
     console.log(`📁 Sumber token: config.js`);
 });
 
