@@ -29,7 +29,7 @@ const getCachedToken = async ({ forceRefresh = false } = {}) => { // <-- Tambahk
 
     try {
         console.log(forceRefresh ? "[LOG] MEMAKSA mengambil token baru..." : "[LOG] Mengambil token baru (cache expired)...");
-        const res = await axios.get("https://dramabox-api.vercel.app/api/token", {
+        const res = await axios.get("http://web.rsmediazero.my.id/dramabox", {
             timeout: 10000 
         });
         
