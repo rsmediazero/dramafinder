@@ -2,7 +2,7 @@
 import express from 'express';
 import axios from 'axios';
 import cors from 'cors';
-import { tokenConfig } from './config.js'; // Import dari config.js
+import { tokenConfig } from './config.js';
 
 const app = express();
 const PORT = 3001;
@@ -48,6 +48,9 @@ const getCachedToken = async ({ forceRefresh = false } = {}) => {
         };
         
         console.log("[LOG] Token dari config.js berhasil disimpan ke cache.");
+        console.log("[LOG] Token:", tokenData.token.substring(0, 20) + "...");
+        console.log("[LOG] Device ID:", tokenData.deviceId);
+        
         return tokenCache.data;
         
     } catch (error) {
@@ -108,12 +111,15 @@ const retryRequest = async (requestFn, maxRetries = 2) => {
 app.post('/api/latest', async (req, res) => {
     try {
         const requestFn = async () => {
-            // PANGGILAN NORMAL (MENGGUNAKAN CACHE)
-            const gettoken = await getCachedToken(); // <-- TANPA forceRefresh
+            const gettoken = await getCachedToken();
             const url = "https://sapi.dramaboxdb.com/drama-box/he001/theater";
             const headers = createHeaders(gettoken);
             const page = req.body.pageNo || 1;
-            console.log(`[LOG] POST /api/latest: Halaman ${page}`);
+            
+            console.log(`[LATEST] Halaman: ${page}`);
+            console.log(`[LATEST] Token: ${gettoken.token ? '✅' : '❌'}`);
+            console.log(`[LATEST] Device ID: ${gettoken.deviceId ? '✅' : '❌'}`);
+            
             const data = {
                 newChannelStyle: 1,
                 isNeedRank: 1,
@@ -121,7 +127,18 @@ app.post('/api/latest', async (req, res) => {
                 index: (parseInt(page) - 1) * 20,
                 channelId: 43
             };
-            return await axios.post(url, data, { headers, timeout: 15000 });
+            
+            console.log(`[LATEST] Request data:`, JSON.stringify(data).substring(0, 100) + "...");
+            
+            const response = await axios.post(url, data, { 
+                headers, 
+                timeout: 15000 
+            });
+            
+            console.log(`[LATEST] Response status: ${response.status}`);
+            console.log(`[LATEST] Data received: ${response.data ? '✅' : '❌'}`);
+            
+            return response;
         };
 
         const response = await retryRequest(requestFn);
@@ -129,7 +146,20 @@ app.post('/api/latest', async (req, res) => {
         
     } catch (error) {
         console.error("[ERROR] /api/latest:", error.message);
-        res.status(500).json({ success: false, message: "Gagal mengambil data drama terbaru.", error: error.message });
+        
+        if (error.response) {
+            console.error("[ERROR] Response details:", {
+                status: error.response.status,
+                data: error.response.data
+            });
+        }
+        
+        res.status(500).json({ 
+            success: false, 
+            message: "Gagal mengambil data drama terbaru.", 
+            error: error.message,
+            details: error.response?.data || null
+        });
     }
 });
 
@@ -145,21 +175,64 @@ app.post('/api/search', async (req, res) => {
     }
 
     try {
+        console.log(`[SEARCH] Mencari: "${keyword}"`);
+        
         const requestFn = async () => {
-            // PANGGILAN NORMAL (MENGGUNAKAN CACHE)
-            const gettoken = await getCachedToken(); // <-- TANPA forceRefresh
+            const gettoken = await getCachedToken();
+            console.log(`[SEARCH] Token: ${gettoken.token ? '✅ Ada' : '❌ Tidak ada'}`);
+            console.log(`[SEARCH] Device ID: ${gettoken.deviceId ? '✅ Ada' : '❌ Tidak ada'}`);
+            
             const url = "https://sapi.dramaboxdb.com/drama-box/search/suggest";
             const headers = createHeaders(gettoken);
-            const data = { keyword: req.body.keyword };
-            return await axios.post(url, data, { headers, timeout: 15000 });
+            
+            console.log(`[SEARCH] Headers tn: ${headers.tn ? '✅ Ada' : '❌ Tidak ada'}`);
+            console.log(`[SEARCH] Headers device-id: ${headers['device-id'] ? '✅ Ada' : '❌ Tidak ada'}`);
+            
+            const data = { keyword: keyword.trim() };
+            console.log(`[SEARCH] Request data:`, data);
+            
+            const response = await axios.post(url, data, { 
+                headers, 
+                timeout: 15000 
+            });
+            
+            console.log(`[SEARCH] Response status: ${response.status}`);
+            console.log(`[SEARCH] Response data keys:`, Object.keys(response.data));
+            
+            if (response.data && response.data.data) {
+                console.log(`[SEARCH] Jumlah hasil: ${response.data.data.length || 0}`);
+                console.log(`[SEARCH] Hasil:`, response.data.data.slice(0, 3)); // Log 3 hasil pertama
+            }
+            
+            return response;
         };
 
         const response = await retryRequest(requestFn);
+        
+        if (!response.data) {
+            throw new Error("Response tidak memiliki data");
+        }
+        
         res.json(response.data);
         
     } catch (error) {
         console.error("[ERROR] /api/search:", error.message);
-        res.status(500).json({ success: false, message: "Gagal melakukan pencarian.", error: error.message });
+        console.error("[ERROR] Stack:`, error.stack);
+        
+        if (error.response) {
+            console.error("[ERROR] Response error:", {
+                status: error.response.status,
+                data: error.response.data,
+                headers: error.response.headers
+            });
+        }
+        
+        res.status(500).json({ 
+            success: false, 
+            message: "Gagal melakukan pencarian.", 
+            error: error.message,
+            details: error.response?.data || null
+        });
     }
 });
 
@@ -174,10 +247,15 @@ app.post('/api/stream-link', async (req, res) => {
     }
 
     try {
+        console.log(`[STREAM] Memulai untuk bookId: ${bookId}`);
+        
         const requestFn = async () => {
             const gettoken = await getCachedToken({ forceRefresh: true });
             const url = "https://sapi.dramaboxdb.com/drama-box/chapterv2/batch/load";
             const headers = createHeaders(gettoken);
+            
+            console.log(`[STREAM] Token: ${gettoken.token ? '✅' : '❌'}`);
+            console.log(`[STREAM] Device ID: ${gettoken.deviceId ? '✅' : '❌'}`);
             
             const baseData = {
                 boundaryIndex: 0,
@@ -195,7 +273,7 @@ app.post('/api/stream-link', async (req, res) => {
 
             const initialRequestData = { ...baseData, index: 1 };
             
-            console.log(`[LOG] Mengambil episode untuk bookId: ${bookId}`);
+            console.log(`[STREAM] Request data:`, JSON.stringify(initialRequestData));
             
             return await axios.post(url, initialRequestData, { 
                 headers,
@@ -206,6 +284,8 @@ app.post('/api/stream-link', async (req, res) => {
         const initialResponse = await retryRequest(requestFn);
         const initialData = initialResponse.data?.data;
         
+        console.log(`[STREAM] Initial response:`, initialData ? '✅' : '❌');
+        
         if (!initialData || !initialData.chapterList || initialData.chapterList.length === 0) {
             throw new Error("Daftar episode tidak ditemukan.");
         }
@@ -215,10 +295,15 @@ app.post('/api/stream-link', async (req, res) => {
         const batchSize = firstBatch.length;
         let allEpisodes = [...firstBatch];
 
+        console.log(`[STREAM] Batch pertama: ${firstBatch.length} episode`);
+        console.log(`[STREAM] Total episode: ${totalEpisodes}`);
+
         // Ambil episode tambahan jika ada
         if (totalEpisodes > batchSize) {
+            console.log(`[STREAM] Mengambil episode tambahan...`);
+            
             const additionalRequestFn = async (nextIndex) => {
-               const gettoken = await getCachedToken({ forceRefresh: true });
+                const gettoken = await getCachedToken({ forceRefresh: true });
                 const headers = createHeaders(gettoken);
                 const requestData = { 
                     boundaryIndex: 0,
@@ -234,6 +319,8 @@ app.post('/api/stream-link', async (req, res) => {
                     bookId: String(bookId),
                     index: nextIndex 
                 };
+                
+                console.log(`[STREAM] Request tambahan index: ${nextIndex}`);
                 
                 return await axios.post(
                     "https://sapi.dramaboxdb.com/drama-box/chapterv2/batch/load", 
@@ -252,6 +339,7 @@ app.post('/api/stream-link', async (req, res) => {
                 const chapterList = response.data?.data?.chapterList;
                 if (chapterList) {
                     allEpisodes.push(...chapterList);
+                    console.log(`[STREAM] Ditambahkan ${chapterList.length} episode`);
                 }
             });
         }
@@ -274,7 +362,7 @@ app.post('/api/stream-link', async (req, res) => {
 
         processedEpisodes.sort((a, b) => a.episodeNumber - b.episodeNumber);
         
-        console.log(`[LOG] Berhasil memproses ${processedEpisodes.length} episode untuk bookId: ${bookId}`);
+        console.log(`[STREAM] Berhasil memproses ${processedEpisodes.length} episode`);
         
         res.json({ 
             success: true, 
@@ -300,10 +388,18 @@ app.post('/api/stream-link', async (req, res) => {
 
 // Health check endpoint
 app.get('/health', (req, res) => {
+    const cacheAge = Date.now() - tokenCache.timestamp;
+    const isCacheValid = cacheAge < CACHE_DURATION_MS;
+    
     res.json({ 
         status: 'OK', 
         timestamp: new Date().toISOString(),
-        tokenCacheAge: Date.now() - tokenCache.timestamp,
+        tokenCache: {
+            age: cacheAge,
+            valid: isCacheValid,
+            hasToken: !!tokenCache.data,
+            hasDeviceId: !!tokenCache.data?.deviceId
+        },
         tokenSource: 'config.js'
     });
 });
@@ -316,15 +412,110 @@ app.get('/token-info', (req, res) => {
         cached: isCached,
         cacheAge: tokenCache.timestamp ? Date.now() - tokenCache.timestamp : null,
         tokenExists: !!tokenCache.data,
+        tokenPreview: tokenCache.data?.token ? tokenCache.data.token.substring(0, 20) + "..." : null,
+        deviceId: tokenCache.data?.deviceId || null,
         deviceIdExists: !!tokenCache.data?.deviceId,
-        lastUpdated: tokenCache.timestamp ? new Date(tokenCache.timestamp).toISOString() : null
+        lastUpdated: tokenCache.timestamp ? new Date(tokenCache.timestamp).toISOString() : null,
+        config: {
+            tokenExists: !!tokenConfig.token,
+            deviceIdExists: !!tokenConfig.deviceId
+        }
     });
+});
+
+// Endpoint untuk test token
+app.get('/test-token', async (req, res) => {
+    try {
+        const tokenData = await getCachedToken();
+        const headers = createHeaders(tokenData);
+        
+        // Test request sederhana
+        const testUrl = "https://sapi.dramaboxdb.com/drama-box/he001/theater";
+        const testData = {
+            newChannelStyle: 1,
+            isNeedRank: 1,
+            pageNo: 1,
+            index: 0,
+            channelId: 43
+        };
+        
+        console.log(`[TEST] Testing token dengan request...`);
+        
+        const response = await axios.post(testUrl, testData, { 
+            headers, 
+            timeout: 10000 
+        });
+        
+        console.log(`[TEST] Response status: ${response.status}`);
+        
+        res.json({
+            success: true,
+            token: {
+                exists: !!tokenData.token,
+                deviceId: tokenData.deviceId,
+                length: tokenData.token?.length,
+                preview: tokenData.token?.substring(0, 20) + "..."
+            },
+            testRequest: {
+                status: response.status,
+                hasData: !!response.data,
+                dataStructure: Object.keys(response.data || {})
+            },
+            message: "Token berhasil di-test"
+        });
+        
+    } catch (error) {
+        console.error(`[TEST] Error:`, error.message);
+        
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            response: error.response?.data,
+            tokenInfo: {
+                exists: !!tokenCache.data,
+                deviceId: tokenCache.data?.deviceId
+            }
+        });
+    }
+});
+
+// Endpoint untuk mendapatkan token baru dari sumber asli
+app.get('/get-new-token', async (req, res) => {
+    try {
+        console.log("[NEW_TOKEN] Mengambil token baru dari sumber asli...");
+        const response = await axios.get("http://web.rsmediazero.my.id/dramabox", {
+            timeout: 10000 
+        });
+        
+        if (!response.data || !response.data.data.token || !response.data.data.deviceId) {
+            throw new Error("Response token tidak valid");
+        }
+        
+        const newToken = response.data.data;
+        
+        res.json({
+            success: true,
+            token: newToken.token,
+            deviceId: newToken.deviceId,
+            message: "Token baru berhasil diambil"
+        });
+        
+    } catch (error) {
+        console.error("[ERROR] Gagal mengambil token baru:", error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            message: "Gagal mengambil token baru dari sumber asli"
+        });
+    }
 });
 
 app.listen(PORT, () => {
     console.log(`🚀 Backend proxy berjalan di http://localhost:${PORT}`);
-    console.log(`📊 Health check tersedia di http://localhost:${PORT}/health`);
-    console.log(`🔑 Token info tersedia di http://localhost:${PORT}/token-info`);
+    console.log(`📊 Health check: http://localhost:${PORT}/health`);
+    console.log(`🔑 Token info: http://localhost:${PORT}/token-info`);
+    console.log(`🧪 Test token: http://localhost:${PORT}/test-token`);
+    console.log(`🔄 Get new token: http://localhost:${PORT}/get-new-token`);
     console.log(`📁 Sumber token: config.js`);
 });
 
