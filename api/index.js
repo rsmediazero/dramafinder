@@ -98,8 +98,8 @@ const retryRequest = async (requestFn, maxRetries = 2) => {
     }
 };
 
-// 1. Endpoint untuk mendapatkan drama terbaru - FIXED STRUCTURE
-app.post('/api/latest', async (req, res) => {
+// 1. Endpoint untuk mendapatkan drama terbaru
+app.post('/api/new-list', async (req, res) => {
     try {
         const requestFn = async () => {
             const gettoken = await getCachedToken();
@@ -107,7 +107,7 @@ app.post('/api/latest', async (req, res) => {
             const headers = createHeaders(gettoken);
             const page = req.body.pageNo || 1;
             
-            console.log(`[LATEST] Request halaman: ${page}`);
+            console.log(`[NEW-LIST] Request halaman: ${page}`);
             
             const data = {
                 newChannelStyle: 1,
@@ -122,7 +122,7 @@ app.post('/api/latest', async (req, res) => {
                 timeout: 15000 
             });
             
-            console.log(`[LATEST] Response status: ${response.status}`);
+            console.log(`[NEW-LIST] Response status: ${response.status}`);
             
             return response;
         };
@@ -130,23 +130,23 @@ app.post('/api/latest', async (req, res) => {
         const response = await retryRequest(requestFn);
         const responseData = response.data;
         
-        console.log(`[LATEST] Full response structure:`, Object.keys(responseData));
+        console.log(`[NEW-LIST] Full response structure:`, Object.keys(responseData));
         
-        // PERBAIKAN: Handle struktur response yang sebenarnya
+        // Handle struktur response yang sebenarnya
         let dramaList = [];
         
         if (responseData) {
             // Cek berbagai kemungkinan struktur
             if (responseData.data) {
-                console.log(`[LATEST] Data field exists, keys:`, Object.keys(responseData.data));
+                console.log(`[NEW-LIST] Data field exists, keys:`, Object.keys(responseData.data));
                 
                 // Struktur dengan data.columnVoList
                 if (responseData.data.columnVoList && Array.isArray(responseData.data.columnVoList)) {
-                    console.log(`[LATEST] Processing columnVoList with ${responseData.data.columnVoList.length} columns`);
+                    console.log(`[NEW-LIST] Processing columnVoList with ${responseData.data.columnVoList.length} columns`);
                     
                     responseData.data.columnVoList.forEach((column, index) => {
                         if (column.bookList && Array.isArray(column.bookList)) {
-                            console.log(`[LATEST] Column ${index} has ${column.bookList.length} books`);
+                            console.log(`[NEW-LIST] Column ${index} has ${column.bookList.length} books`);
                             dramaList = dramaList.concat(column.bookList);
                         }
                     });
@@ -154,28 +154,28 @@ app.post('/api/latest', async (req, res) => {
                 
                 // Struktur dengan data.recommendList
                 if (responseData.data.recommendList && responseData.data.recommendList.records && Array.isArray(responseData.data.recommendList.records)) {
-                    console.log(`[LATEST] Processing recommendList with ${responseData.data.recommendList.records.length} records`);
+                    console.log(`[NEW-LIST] Processing recommendList with ${responseData.data.recommendList.records.length} records`);
                     dramaList = dramaList.concat(responseData.data.recommendList.records);
                 }
                 
                 // Struktur langsung data sebagai array
                 if (Array.isArray(responseData.data)) {
-                    console.log(`[LATEST] Data is direct array with ${responseData.data.length} items`);
+                    console.log(`[NEW-LIST] Data is direct array with ${responseData.data.length} items`);
                     dramaList = responseData.data;
                 }
             } 
-            // PERBAIKAN: Jika tidak ada data field, coba langsung dari root
+            // Jika tidak ada data field, coba langsung dari root
             else if (Array.isArray(responseData)) {
-                console.log(`[LATEST] Response is direct array with ${responseData.length} items`);
+                console.log(`[NEW-LIST] Response is direct array with ${responseData.length} items`);
                 dramaList = responseData;
             }
             // Coba struktur lain
             else if (responseData.list && Array.isArray(responseData.list)) {
-                console.log(`[LATEST] Using list field with ${responseData.list.length} items`);
+                console.log(`[NEW-LIST] Using list field with ${responseData.list.length} items`);
                 dramaList = responseData.list;
             }
             else if (responseData.records && Array.isArray(responseData.records)) {
-                console.log(`[LATEST] Using records field with ${responseData.records.length} items`);
+                console.log(`[NEW-LIST] Using records field with ${responseData.records.length} items`);
                 dramaList = responseData.records;
             }
             else {
@@ -184,20 +184,20 @@ app.post('/api/latest', async (req, res) => {
                 const arrayKey = keys.find(key => Array.isArray(responseData[key]) && key !== 'message' && key !== 'status');
                 
                 if (arrayKey) {
-                    console.log(`[LATEST] Using array key "${arrayKey}" with ${responseData[arrayKey].length} items`);
+                    console.log(`[NEW-LIST] Using array key "${arrayKey}" with ${responseData[arrayKey].length} items`);
                     dramaList = responseData[arrayKey];
                 }
             }
         }
         
-        console.log(`[LATEST] Extracted ${dramaList.length} dramas`);
+        console.log(`[NEW-LIST] Extracted ${dramaList.length} dramas`);
         
         // Filter hanya item yang memiliki bookId
         const validDramas = dramaList.filter(drama => drama && drama.bookId);
-        console.log(`[LATEST] ${validDramas.length} valid dramas after filtering`);
+        console.log(`[NEW-LIST] ${validDramas.length} valid dramas after filtering`);
         
         if (validDramas.length > 0) {
-            console.log(`[LATEST] First drama example:`, {
+            console.log(`[NEW-LIST] First drama example:`, {
                 id: validDramas[0].bookId,
                 name: validDramas[0].bookName,
                 cover: validDramas[0].coverWap
@@ -219,7 +219,7 @@ app.post('/api/latest', async (req, res) => {
         });
         
     } catch (error) {
-        console.error("[ERROR] /api/latest:", error.message);
+        console.error("[ERROR] /api/new-list:", error.message);
         
         if (error.response) {
             console.error("[ERROR] Response details:", {
@@ -502,8 +502,9 @@ app.get('/health', (req, res) => {
 app.listen(PORT, () => {
     console.log(`🚀 Backend proxy berjalan di http://localhost:${PORT}`);
     console.log(`📊 Health check: http://localhost:${PORT}/health`);
-    console.log(`🎬 Latest dramas: POST http://localhost:${PORT}/api/latest`);
+    console.log(`🎬 New list: POST http://localhost:${PORT}/api/new-list`);
     console.log(`🔍 Search: POST http://localhost:${PORT}/api/search`);
+    console.log(`🎥 Stream link: POST http://localhost:${PORT}/api/stream-link`);
     console.log(`📁 Sumber token: config.js`);
 });
 

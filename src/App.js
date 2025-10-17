@@ -75,7 +75,7 @@ export default function App() {
         setError(null);
 
         try {
-            const response = await fetch(`${API_BASE_URL}/api/latest`, {
+            const response = await fetch(`${API_BASE_URL}/api/new-list`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -89,7 +89,7 @@ export default function App() {
             
             if (result.success === false) throw new Error(result.message || "API mengembalikan error.");
 
-            // PERBAIKAN: Handle struktur response yang sebenarnya
+            // Handle struktur response yang sebenarnya
             let dramaList = [];
             
             if (result.data && result.data.list) {
@@ -134,7 +134,7 @@ export default function App() {
             
             if (result.success === false) throw new Error(result.message || "Pencarian API gagal.");
             
-            // PERBAIKAN: Handle struktur response pencarian
+            // Handle struktur response pencarian
             let searchResults = [];
             
             if (result.data && Array.isArray(result.data)) {
