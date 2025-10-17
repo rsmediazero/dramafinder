@@ -1,5 +1,5 @@
 // src/Player.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation, Link, useNavigate, useParams } from 'react-router-dom';
 
 const LoadingSpinner = () => (
@@ -35,16 +35,20 @@ export default function Player() {
     });
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [videoError, setVideoError] = useState(null);
     
     // Fungsi untuk fetch data drama dan episode
     const fetchDramaData = async (targetBookId) => {
         setIsLoading(true);
         setError(null);
+        setVideoError(null);
         
         try {
-            console.log(`[LOG] Mengambil data untuk bookId: ${targetBookId}`);
+            console.log(`[Player] Mengambil data untuk bookId: ${targetBookId}`);
             
-            const response = await fetch('http://localhost:3001/api/stream-link', {
+            const API_BASE_URL = process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3001';
+            
+            const response = await fetch(`${API_BASE_URL}/api/stream-link`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ bookId: String(targetBookId) })
@@ -64,12 +68,29 @@ export default function Player() {
                 throw new Error("Tidak ada episode yang tersedia untuk drama ini");
             }
             
+            console.log(`[Player] Berhasil mendapatkan ${result.episodes.length} episode`);
+            
             return result.episodes;
             
         } catch (err) {
-            console.error(`[ERROR] Fetch drama data:`, err);
+            console.error(`[Player] Error fetch drama data:`, err);
             throw err;
         }
+    };
+    
+    // Fungsi untuk mendapatkan drama info dari location state atau membuat default
+    const getDramaInfo = () => {
+        if (location.state && location.state.dramaInfo) {
+            return location.state.dramaInfo;
+        }
+        
+        // Fallback: buat info dasar dari bookId
+        return {
+            id: bookId,
+            title: `Drama ${bookId}`,
+            description: "Informasi drama sedang dimuat...",
+            category: "Drama"
+        };
     };
     
     // Effect utama untuk handle data loading
@@ -77,62 +98,56 @@ export default function Player() {
         const initializePlayer = async () => {
             if (!bookId) {
                 setError("ID drama tidak valid");
+                setIsLoading(false);
                 return;
             }
             
             // Reset state
             setCurrentEpisode(null);
             setDramaData({ info: null, episodes: [] });
+            setVideoError(null);
             
             try {
-                // Cek apakah ada data dari location.state
-                if (location.state && 
-                    location.state.dramaInfo && 
-                    String(location.state.dramaInfo.id) === bookId) {
-                    
-                    console.log("[LOG] Menggunakan data dari location.state");
-                    
-                    const { dramaInfo, episodes, selectedEpisode } = location.state;
-                    
-                    // Verifikasi episodes
-                    if (!episodes || episodes.length === 0) {
-                        console.log("[LOG] Episodes kosong, fetch ulang...");
-                        const fetchedEpisodes = await fetchDramaData(bookId);
-                        
-                        setDramaData({
-                            info: dramaInfo,
-                            episodes: fetchedEpisodes,
-                        });
-                        setCurrentEpisode(fetchedEpisodes[0]);
-                    } else {
-                        setDramaData({
-                            info: dramaInfo,
-                            episodes: episodes,
-                        });
-                        setCurrentEpisode(selectedEpisode || episodes[0]);
-                    }
+                const dramaInfo = getDramaInfo();
+                let episodes = [];
+                
+                // Cek apakah ada episodes dari location.state
+                if (location.state && location.state.episodes && location.state.episodes.length > 0) {
+                    console.log("[Player] Menggunakan episodes dari location.state");
+                    episodes = location.state.episodes;
                 } else {
-                    console.log("[LOG] Tidak ada location.state, fetch data...");
-                    
-                    // Jika tidak ada data dari state (misal refresh page), fetch data
-                    const fetchedEpisodes = await fetchDramaData(bookId);
-                    
-                    // Buat dummy drama info jika tidak ada
-                    const dummyInfo = {
-                        id: bookId,
-                        title: "Loading...",
-                        description: "Sedang memuat informasi drama...",
-                        category: "Drama"
-                    };
-                    
-                    setDramaData({
-                        info: dummyInfo,
-                        episodes: fetchedEpisodes,
-                    });
-                    setCurrentEpisode(fetchedEpisodes[0]);
+                    console.log("[Player] Fetch episodes dari API");
+                    episodes = await fetchDramaData(bookId);
                 }
                 
+                // Validasi episodes
+                if (!episodes || episodes.length === 0) {
+                    throw new Error("Tidak ada episode yang tersedia");
+                }
+                
+                // Filter hanya episode yang memiliki URL valid
+                const validEpisodes = episodes.filter(ep => ep && ep.url && ep.url.trim() !== '');
+                
+                if (validEpisodes.length === 0) {
+                    throw new Error("Tidak ada episode dengan URL video yang valid");
+                }
+                
+                console.log(`[Player] ${validEpisodes.length} episode valid ditemukan`);
+                
+                setDramaData({
+                    info: dramaInfo,
+                    episodes: validEpisodes,
+                });
+                
+                // Set current episode - prioritaskan dari location.state atau ambil pertama
+                const initialEpisode = location.state && location.state.selectedEpisode 
+                    ? location.state.selectedEpisode 
+                    : validEpisodes[0];
+                    
+                setCurrentEpisode(initialEpisode);
+                
             } catch (err) {
+                console.error("[Player] Error initializing player:", err);
                 setError(err.message);
             } finally {
                 setIsLoading(false);
@@ -143,28 +158,31 @@ export default function Player() {
     }, [bookId, location.state]);
     
     // Fungsi untuk retry
-    const handleRetry = () => {
-        // Force reload dengan clear state
+    const handleRetry = useCallback(() => {
         setError(null);
+        setVideoError(null);
         setIsLoading(true);
         
-        // Clear location.state dan reload
-        window.location.reload();
-    };
+        // Gunakan setTimeout untuk memberikan feedback visual
+        setTimeout(() => {
+            window.location.reload();
+        }, 300);
+    }, []);
     
     // Fungsi untuk mengganti episode
-    const handleEpisodeChange = (episode) => {
-        if (episode.url) {
+    const handleEpisodeChange = useCallback((episode) => {
+        if (episode && episode.url) {
             setCurrentEpisode(episode);
+            setVideoError(null); // Clear video error saat ganti episode
         } else {
-            setError("Episode ini tidak memiliki URL yang valid");
+            setVideoError("Episode ini tidak memiliki URL yang valid");
         }
-    };
+    }, []);
 
-    const handleVideoEnded = React.useCallback(() => {
+    const handleVideoEnded = useCallback(() => {
         const episodes = dramaData.episodes;
         if (!currentEpisode || !episodes || episodes.length === 0) {
-            return; // Keluar jika data tidak valid
+            return;
         }
 
         // Cari index dari episode yang sedang diputar
@@ -175,13 +193,56 @@ export default function Player() {
         // Cek apakah ada episode selanjutnya
         if (currentIndex > -1 && currentIndex < episodes.length - 1) {
             const nextEpisode = episodes[currentIndex + 1];
-            console.log(`[LOG] Video Selesai. Memutar episode selanjutnya: ${nextEpisode.title}`);
-            setCurrentEpisode(nextEpisode); // Set episode selanjutnya
+            console.log(`[Player] Video selesai, memutar episode selanjutnya: ${nextEpisode.title}`);
+            setCurrentEpisode(nextEpisode);
         } else {
-            console.log("[LOG] Episode terakhir telah selesai.");
-            // Tidak melakukan apa-apa jika ini adalah episode terakhir
+            console.log("[Player] Episode terakhir telah selesai");
+            // Bisa tambahkan notifikasi atau auto-rewatch
         }
     }, [currentEpisode, dramaData.episodes]);
+    
+    // Handle video error
+    const handleVideoError = useCallback((e) => {
+        console.error("Video error:", e);
+        const video = e.target;
+        const errorCode = video.error ? video.error.code : 'unknown';
+        
+        let errorMessage = "Gagal memuat video. ";
+        
+        switch (errorCode) {
+            case 1:
+                errorMessage += "Video dibatalkan.";
+                break;
+            case 2:
+                errorMessage += "Network error.";
+                break;
+            case 3:
+                errorMessage += "Error decoding video.";
+                break;
+            case 4:
+                errorMessage += "Video tidak didukung.";
+                break;
+            default:
+                errorMessage += "Silakan coba episode lain.";
+        }
+        
+        setVideoError(errorMessage);
+    }, []);
+    
+    // Format episode title untuk tampilan
+    const formatEpisodeTitle = (episode) => {
+        if (!episode) return "Unknown";
+        
+        if (episode.title && episode.title.includes('EP')) {
+            return episode.title.replace('EP ', '');
+        }
+        
+        if (episode.episodeNumber) {
+            return `EP ${episode.episodeNumber}`;
+        }
+        
+        return "Episode";
+    };
     
     // Loading state
     if (isLoading) {
@@ -189,7 +250,7 @@ export default function Player() {
             <div className="bg-gray-900 min-h-screen text-white">
                 <div className="container mx-auto px-4 py-8">
                     <div className="flex justify-between items-center mb-4">
-                        <h1 className="text-xl font-bold">Loading...</h1>
+                        <h1 className="text-xl font-bold">Memuat Drama...</h1>
                         <Link 
                             to="/" 
                             className="bg-gray-700 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200 text-sm"
@@ -197,7 +258,10 @@ export default function Player() {
                             ← Kembali ke Daftar
                         </Link>
                     </div>
-                    <LoadingSpinner />
+                    <div className="text-center py-12">
+                        <LoadingSpinner />
+                        <p className="mt-4 text-gray-400">Sedang memuat data drama...</p>
+                    </div>
                 </div>
             </div>
         );
@@ -228,8 +292,17 @@ export default function Player() {
         return (
             <div className="bg-gray-900 min-h-screen text-white">
                 <div className="container mx-auto px-4 py-8">
+                    <div className="flex justify-between items-center mb-4">
+                        <h1 className="text-xl font-bold text-red-400">Data Tidak Lengkap</h1>
+                        <Link 
+                            to="/" 
+                            className="bg-gray-700 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200 text-sm"
+                        >
+                            ← Kembali ke Daftar
+                        </Link>
+                    </div>
                     <ErrorMessage 
-                        message="Data drama tidak lengkap" 
+                        message="Data drama tidak lengkap atau korup" 
                         onRetry={() => navigate('/')} 
                     />
                 </div>
@@ -239,80 +312,115 @@ export default function Player() {
     
     return (
         <div className="bg-gray-900 min-h-screen text-white p-4 md:p-8">
-            <div className="max-w-4xl mx-auto">
-                <div className="flex justify-between items-center mb-4">
-                    <h1 className="text-xl md:text-2xl font-bold truncate">
-                        {dramaData.info.title} - {currentEpisode.title}
-                    </h1>
+            <div className="max-w-6xl mx-auto">
+                {/* Header */}
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
+                    <div className="flex-1 min-w-0">
+                        <h1 className="text-xl md:text-2xl font-bold truncate">
+                            {dramaData.info.title}
+                        </h1>
+                        <p className="text-gray-400 text-sm md:text-base">
+                            Sedang diputar: {currentEpisode.title || `Episode ${currentEpisode.episodeNumber}`}
+                        </p>
+                    </div>
                     <Link 
                         to="/" 
-                        className="bg-gray-700 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200 text-sm"
+                        className="bg-gray-700 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200 text-sm whitespace-nowrap"
                     >
                         ← Kembali ke Daftar
                     </Link>
                 </div>
 
-                {/* Video Player */}
-                <div className="bg-black mb-4 rounded-lg overflow-hidden flex justify-center">
-                    {currentEpisode.url ? (
+                {/* Video Player Section */}
+                <div className="bg-black rounded-lg overflow-hidden mb-6 shadow-2xl">
+                    {videoError ? (
+                        <div className="flex flex-col items-center justify-center h-64 md:h-96 p-8 text-center">
+                            <div className="text-red-400 text-4xl mb-4">⚠️</div>
+                            <p className="text-red-300 font-semibold mb-2">Error Video</p>
+                            <p className="text-gray-400 text-sm mb-4">{videoError}</p>
+                            <button
+                                onClick={handleRetry}
+                                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded transition-colors text-sm"
+                            >
+                                Coba Lagi
+                            </button>
+                        </div>
+                    ) : (
                         <video 
-                            key={`${currentEpisode.episodeNumber}-${currentEpisode.url}`}
-                            className="max-h-[75vh] w-full"
+                            key={currentEpisode.url} // Force re-render saat ganti episode
+                            className="w-full max-h-[75vh]"
                             controls 
                             autoPlay
+                            playsInline
                             onEnded={handleVideoEnded}
-                            onError={(e) => {
-                                console.error("Video error:", e);
-                                setError("Gagal memuat video. Silakan coba episode lain.");
-                            }}
+                            onError={handleVideoError}
+                            preload="metadata"
                         >
                             <source src={currentEpisode.url} type="video/mp4" />
-                            Browser Anda tidak mendukung tag video.
+                            <source src={currentEpisode.url} type="video/webm" />
+                            Browser Anda tidak mendukung pemutar video.
                         </video>
-                    ) : (
-                        <div className="flex items-center justify-center h-64 text-red-400">
-                            Video tidak tersedia untuk episode ini
-                        </div>
                     )}
                 </div>
 
-                {/* Drama Info */}
-                <div className="bg-gray-800 p-4 rounded-lg">
-                    <p className="text-gray-300 mb-4">
-                        {dramaData.info.description || "Tidak ada deskripsi tersedia."}
-                    </p>
-                    
-                    {dramaData.info.category && (
-                        <div className="flex flex-wrap gap-2 mb-4">
-                            {dramaData.info.category.split(', ').map((tag, index) => (
-                                <span key={index} className="bg-gray-700 text-xs px-2 py-1 rounded-full">
-                                    {tag}
-                                </span>
+                {/* Drama Info dan Episode List */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Drama Information */}
+                    <div className="lg:col-span-2 bg-gray-800 p-4 md:p-6 rounded-lg">
+                        <h2 className="text-lg md:text-xl font-bold mb-4">Informasi Drama</h2>
+                        
+                        <p className="text-gray-300 mb-4 text-sm md:text-base">
+                            {dramaData.info.description || "Tidak ada deskripsi tersedia."}
+                        </p>
+                        
+                        {dramaData.info.category && (
+                            <div className="mb-4">
+                                <h3 className="font-semibold mb-2">Kategori:</h3>
+                                <div className="flex flex-wrap gap-2">
+                                    {dramaData.info.category.split(', ').map((tag, index) => (
+                                        <span 
+                                            key={index} 
+                                            className="bg-gray-700 text-xs px-3 py-1 rounded-full border border-gray-600"
+                                        >
+                                            {tag.trim()}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Episode List */}
+                    <div className="bg-gray-800 p-4 md:p-6 rounded-lg">
+                        <h3 className="text-lg font-bold mb-4">
+                            Daftar Episode ({dramaData.episodes.length})
+                        </h3>
+                        
+                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 gap-2 max-h-96 overflow-y-auto pr-2">
+                            {dramaData.episodes.map((ep, index) => (
+                                <button
+                                    key={ep.episodeNumber || index}
+                                    onClick={() => handleEpisodeChange(ep)}
+                                    disabled={!ep.url}
+                                    className={`w-full p-2 rounded text-center transition-all duration-200 text-xs font-medium ${
+                                        currentEpisode.episodeNumber === ep.episodeNumber 
+                                            ? 'bg-red-600 text-white shadow-lg transform scale-105' 
+                                            : ep.url 
+                                                ? 'bg-gray-700 hover:bg-gray-600 text-white hover:shadow-md' 
+                                                : 'bg-gray-900 text-gray-500 cursor-not-allowed'
+                                    }`}
+                                    title={ep.title || `Episode ${ep.episodeNumber}`}
+                                >
+                                    {formatEpisodeTitle(ep)}
+                                </button>
                             ))}
                         </div>
-                    )}
-                    
-                    <h3 className="text-lg font-bold border-t border-gray-700 pt-4">
-                        Daftar Episode ({dramaData.episodes.length}):
-                    </h3>
-                    
-                    <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-12 gap-2 mt-2 max-h-48 overflow-y-auto">
-                        {dramaData.episodes.map(ep => (
-                            <button
-                                key={ep.episodeNumber}
-                                onClick={() => handleEpisodeChange(ep)}
-                                disabled={!ep.url}
-                                className={`w-full p-2 rounded text-center transition-colors text-xs ${
-                                    currentEpisode.episodeNumber === ep.episodeNumber 
-                                        ? 'bg-red-600 font-bold text-white' 
-                                        : ep.url 
-                                            ? 'bg-gray-700 hover:bg-gray-600 text-white' 
-                                            : 'bg-gray-800 text-gray-500 cursor-not-allowed'
-                                }`}
-                            >
-                                {ep.title.replace('EP ', '')}
-                            </button>
-                        ))}
+                        
+                        {dramaData.episodes.length === 0 && (
+                            <p className="text-gray-400 text-center py-4 text-sm">
+                                Tidak ada episode tersedia
+                            </p>
+                        )}
                     </div>
                 </div>
             </div>
