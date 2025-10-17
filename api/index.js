@@ -98,7 +98,7 @@ const retryRequest = async (requestFn, maxRetries = 2) => {
     }
 };
 
-// 1. Endpoint untuk mendapatkan drama terbaru - DIPERBAIKI UNTUK STRUKTUR BARU
+// 1. Endpoint untuk mendapatkan drama terbaru - DEBUG VERSION
 app.post('/api/latest', async (req, res) => {
     try {
         const requestFn = async () => {
@@ -117,12 +117,51 @@ app.post('/api/latest', async (req, res) => {
                 channelId: 43
             };
             
+            console.log(`[LATEST] Request data:`, JSON.stringify(data));
+            
             const response = await axios.post(url, data, { 
                 headers, 
                 timeout: 15000 
             });
             
             console.log(`[LATEST] Response status: ${response.status}`);
+            
+            // DEBUG: Tampilkan struktur lengkap response
+            console.log(`[LATEST] === DEBUG RESPONSE STRUCTURE ===`);
+            console.log(`[LATEST] Root keys:`, Object.keys(response.data));
+            
+            if (response.data.data) {
+                console.log(`[LATEST] Data keys:`, Object.keys(response.data.data));
+                
+                // Cek columnVoList
+                if (response.data.data.columnVoList) {
+                    console.log(`[LATEST] columnVoList length:`, response.data.data.columnVoList.length);
+                    
+                    response.data.data.columnVoList.forEach((column, index) => {
+                        console.log(`[LATEST] Column ${index}:`, {
+                            columnId: column.columnId,
+                            title: column.title,
+                            hasBookList: !!column.bookList,
+                            bookListLength: column.bookList ? column.bookList.length : 0
+                        });
+                        
+                        if (column.bookList && column.bookList.length > 0) {
+                            console.log(`[LATEST] BookList item 0 in column ${index}:`, {
+                                bookId: column.bookList[0].bookId,
+                                bookName: column.bookList[0].bookName,
+                                hasBookId: !!column.bookList[0].bookId
+                            });
+                        }
+                    });
+                }
+                
+                // Cek recommendList
+                if (response.data.data.recommendList) {
+                    console.log(`[LATEST] recommendList records length:`, response.data.data.recommendList.records ? response.data.data.recommendList.records.length : 0);
+                }
+            }
+            
+            console.log(`[LATEST] === END DEBUG ===`);
             
             return response;
         };
@@ -134,24 +173,63 @@ app.post('/api/latest', async (req, res) => {
         let dramaList = [];
         
         if (responseData && responseData.data) {
+            console.log(`[LATEST] Processing data...`);
+            
             // Struktur: data.columnVoList[].bookList[]
             if (responseData.data.columnVoList && Array.isArray(responseData.data.columnVoList)) {
+                console.log(`[LATEST] Found ${responseData.data.columnVoList.length} columns`);
+                
                 // Extract semua bookList dari semua columnVoList
-                responseData.data.columnVoList.forEach(column => {
+                responseData.data.columnVoList.forEach((column, index) => {
+                    console.log(`[LATEST] Processing column ${index}: ${column.title}`);
+                    
                     if (column.bookList && Array.isArray(column.bookList)) {
-                        dramaList = dramaList.concat(column.bookList);
+                        console.log(`[LATEST] Column ${index} has ${column.bookList.length} books`);
+                        
+                        // Filter hanya item yang memiliki bookId
+                        const validBooks = column.bookList.filter(book => book && book.bookId);
+                        console.log(`[LATEST] Column ${index} valid books: ${validBooks.length}`);
+                        
+                        dramaList = dramaList.concat(validBooks);
+                    } else {
+                        console.log(`[LATEST] Column ${index} has no bookList or bookList is not array`);
                     }
                 });
                 
-                console.log(`[LATEST] Berhasil mengekstrak ${dramaList.length} drama dari ${responseData.data.columnVoList.length} kolom`);
+                console.log(`[LATEST] Total extracted from columns: ${dramaList.length}`);
+            } else {
+                console.log(`[LATEST] No columnVoList found or not array`);
             }
             
             // Juga cek recommendList jika ada
             if (responseData.data.recommendList && responseData.data.recommendList.records && Array.isArray(responseData.data.recommendList.records)) {
-                const recommendDramas = responseData.data.recommendList.records.filter(item => item.bookId);
+                console.log(`[LATEST] Processing recommendList with ${responseData.data.recommendList.records.length} records`);
+                
+                const recommendDramas = responseData.data.recommendList.records.filter(item => item && item.bookId);
+                console.log(`[LATEST] Valid recommend dramas: ${recommendDramas.length}`);
+                
                 dramaList = dramaList.concat(recommendDramas);
-                console.log(`[LATEST] Ditambahkan ${recommendDramas.length} drama dari rekomendasi`);
             }
+            
+            // Cek struktur lain yang mungkin
+            const otherKeys = Object.keys(responseData.data).filter(key => 
+                !['columnVoList', 'recommendList', 'bannerList', 'watchHistory', 'channelList', 'searchHotWords'].includes(key)
+            );
+            
+            if (otherKeys.length > 0) {
+                console.log(`[LATEST] Other potential data keys:`, otherKeys);
+                
+                otherKeys.forEach(key => {
+                    const value = responseData.data[key];
+                    if (Array.isArray(value) && value.length > 0) {
+                        console.log(`[LATEST] Key "${key}" is array with ${value.length} items`);
+                        const validItems = value.filter(item => item && item.bookId);
+                        dramaList = dramaList.concat(validItems);
+                    }
+                });
+            }
+        } else {
+            console.log(`[LATEST] No data in response or no response.data`);
         }
         
         // Hapus duplikat berdasarkan bookId
@@ -174,6 +252,12 @@ app.post('/api/latest', async (req, res) => {
                 cover: uniqueDramas[0].coverWap,
                 episodes: uniqueDramas[0].chapterCount
             });
+        } else {
+            console.log(`[LATEST] WARNING: No dramas found!`);
+            console.log(`[LATEST] Raw dramaList length: ${dramaList.length}`);
+            if (dramaList.length > 0) {
+                console.log(`[LATEST] First dramaList item:`, dramaList[0]);
+            }
         }
         
         // Format response yang konsisten
@@ -183,6 +267,11 @@ app.post('/api/latest', async (req, res) => {
                 list: uniqueDramas,
                 total: uniqueDramas.length,
                 page: req.body.pageNo || 1
+            },
+            debug: {
+                rawDramaCount: dramaList.length,
+                uniqueDramaCount: uniqueDramas.length,
+                structure: responseData.data ? Object.keys(responseData.data) : []
             }
         });
         
@@ -209,7 +298,7 @@ app.post('/api/latest', async (req, res) => {
     }
 });
 
-// 2. Endpoint untuk pencarian - DIPERBAIKI
+// 2. Endpoint untuk pencarian
 app.post('/api/search', async (req, res) => {
     const { keyword } = req.body;
     
@@ -229,12 +318,20 @@ app.post('/api/search', async (req, res) => {
             const headers = createHeaders(gettoken);
             const data = { keyword: keyword.trim() };
             
+            console.log(`[SEARCH] Request data:`, data);
+            
             const response = await axios.post(url, data, { 
                 headers, 
                 timeout: 15000 
             });
             
             console.log(`[SEARCH] Response status: ${response.status}`);
+            console.log(`[SEARCH] Response keys:`, Object.keys(response.data));
+            
+            if (response.data.data) {
+                console.log(`[SEARCH] Data type:`, Array.isArray(response.data.data) ? 'Array' : typeof response.data.data);
+                console.log(`[SEARCH] Data keys:`, Object.keys(response.data.data));
+            }
             
             return response;
         };
@@ -261,6 +358,7 @@ app.post('/api/search', async (req, res) => {
                 const arrayKey = keys.find(key => Array.isArray(responseData.data[key]));
                 if (arrayKey) {
                     searchResults = responseData.data[arrayKey];
+                    console.log(`[SEARCH] Using data from key: ${arrayKey}`);
                 }
             }
         }
@@ -302,170 +400,6 @@ app.post('/api/search', async (req, res) => {
     }
 });
 
-// 3. Endpoint untuk mendapatkan link stream - TETAP SAMA
-app.post('/api/stream-link', async (req, res) => {
-    const { bookId } = req.body;
-    if (!bookId) {
-        return res.status(400).json({ 
-            success: false, 
-            message: "bookId diperlukan." 
-        });
-    }
-
-    try {
-        console.log(`[STREAM] Memulai untuk bookId: ${bookId}`);
-        
-        const requestFn = async () => {
-            const gettoken = await getCachedToken({ forceRefresh: true });
-            const url = "https://sapi.dramaboxdb.com/drama-box/chapterv2/batch/load";
-            const headers = createHeaders(gettoken);
-            
-            const baseData = {
-                boundaryIndex: 0,
-                comingPlaySectionId: -1,
-                currencyPlaySource: "discover_new_rec_new",
-                needEndRecommend: 0,
-                currencyPlaySourceName: "",
-                preLoad: false,
-                rid: "",
-                pullCid: "",
-                loadDirection: 0,
-                startUpKey: "",
-                bookId: String(bookId),
-            };
-
-            const initialRequestData = { ...baseData, index: 1 };
-            
-            const response = await axios.post(url, initialRequestData, { 
-                headers,
-                timeout: 20000 
-            });
-            
-            console.log(`[STREAM] Response status: ${response.status}`);
-            
-            return response;
-        };
-
-        const initialResponse = await retryRequest(requestFn);
-        const initialData = initialResponse.data ? initialResponse.data.data : null;
-        
-        if (!initialData || !initialData.chapterList || initialData.chapterList.length === 0) {
-            console.warn(`[STREAM] Tidak ada episode ditemukan untuk bookId: ${bookId}`);
-            return res.json({ 
-                success: true, 
-                episodes: [],
-                bookId: bookId 
-            });
-        }
-
-        const firstBatch = initialData.chapterList;
-        const totalEpisodes = initialData.chapterCount;
-        const batchSize = firstBatch.length;
-        let allEpisodes = [...firstBatch];
-
-        console.log(`[STREAM] Batch pertama: ${firstBatch.length} episode`);
-        console.log(`[STREAM] Total episode: ${totalEpisodes}`);
-
-        // Ambil episode tambahan jika ada
-        if (totalEpisodes > batchSize) {
-            console.log(`[STREAM] Mengambil episode tambahan...`);
-            
-            const additionalRequestFn = async (nextIndex) => {
-                const gettoken = await getCachedToken({ forceRefresh: true });
-                const headers = createHeaders(gettoken);
-                const requestData = { 
-                    boundaryIndex: 0,
-                    comingPlaySectionId: -1,
-                    currencyPlaySource: "discover_new_rec_new",
-                    needEndRecommend: 0,
-                    currencyPlaySourceName: "",
-                    preLoad: false,
-                    rid: "",
-                    pullCid: "",
-                    loadDirection: 0,
-                    startUpKey: "",
-                    bookId: String(bookId),
-                    index: nextIndex 
-                };
-                
-                const response = await axios.post(
-                    "https://sapi.dramaboxdb.com/drama-box/chapterv2/batch/load", 
-                    requestData, 
-                    { headers, timeout: 20000 }
-                );
-                
-                return response;
-            };
-
-            const requests = [];
-            for (let nextIndex = batchSize + 1; nextIndex <= totalEpisodes; nextIndex += batchSize) {
-                requests.push(retryRequest(() => additionalRequestFn(nextIndex)));
-            }
-
-            const additionalResponses = await Promise.all(requests);
-            additionalResponses.forEach(response => {
-                const chapterList = response.data && response.data.data ? response.data.data.chapterList : null;
-                if (chapterList) {
-                    allEpisodes.push(...chapterList);
-                }
-            });
-        }
-
-        // Process episodes
-        const processedEpisodes = allEpisodes.map((chapter, index) => {
-            try {
-                const cdnData = chapter.cdnList ? chapter.cdnList[0] : null;
-                const videoList = cdnData ? cdnData.videoPathList : null;
-                
-                if (!videoList || videoList.length === 0) {
-                    return null;
-                }
-                
-                let streamUrl = null;
-                const defaultVideo = videoList.find(video => video.isDefault === 1);
-                if (defaultVideo && defaultVideo.videoPath) {
-                    streamUrl = defaultVideo.videoPath;
-                } else if (videoList[0] && videoList[0].videoPath) {
-                    streamUrl = videoList[0].videoPath;
-                }
-                
-                if (!streamUrl) {
-                    return null;
-                }
-                
-                return {
-                    episodeNumber: chapter.chapterId || index + 1,
-                    title: chapter.chapterName || `Episode ${index + 1}`,
-                    url: streamUrl,
-                };
-            } catch (error) {
-                console.log(`[STREAM] Error processing episode ${index}:`, error.message);
-                return null;
-            }
-        }).filter(ep => ep && ep.url);
-
-        processedEpisodes.sort((a, b) => a.episodeNumber - b.episodeNumber);
-        
-        console.log(`[STREAM] Berhasil memproses ${processedEpisodes.length} episode`);
-        
-        res.json({ 
-            success: true, 
-            episodes: processedEpisodes,
-            bookId: bookId 
-        });
-        
-    } catch (error) {
-        console.error(`[ERROR] /api/stream-link untuk bookId ${bookId}:`, error.message);
-        
-        res.json({ 
-            success: true, 
-            episodes: [],
-            bookId: bookId,
-            error: error.message
-        });
-    }
-});
-
 // Health check endpoint
 app.get('/health', (req, res) => {
     const cacheAge = Date.now() - tokenCache.timestamp;
@@ -484,11 +418,62 @@ app.get('/health', (req, res) => {
     });
 });
 
+// Debug endpoint untuk melihat response mentah
+app.post('/api/debug-raw', async (req, res) => {
+    try {
+        const gettoken = await getCachedToken();
+        const url = "https://sapi.dramaboxdb.com/drama-box/he001/theater";
+        const headers = createHeaders(gettoken);
+        const data = {
+            newChannelStyle: 1,
+            isNeedRank: 1,
+            pageNo: 1,
+            index: 0,
+            channelId: 43
+        };
+        
+        console.log(`[DEBUG] Getting raw response...`);
+        
+        const response = await axios.post(url, data, { 
+            headers, 
+            timeout: 15000 
+        });
+        
+        // Return response mentah
+        res.json({
+            success: true,
+            rawResponse: response.data,
+            structure: {
+                rootKeys: Object.keys(response.data),
+                dataKeys: response.data.data ? Object.keys(response.data.data) : [],
+                columnVoList: response.data.data && response.data.data.columnVoList ? {
+                    length: response.data.data.columnVoList.length,
+                    firstColumn: response.data.data.columnVoList[0] ? {
+                        keys: Object.keys(response.data.data.columnVoList[0]),
+                        bookList: response.data.data.columnVoList[0].bookList ? {
+                            length: response.data.data.columnVoList[0].bookList.length,
+                            firstItem: response.data.data.columnVoList[0].bookList[0]
+                        } : null
+                    } : null
+                } : null
+            }
+        });
+        
+    } catch (error) {
+        console.error("[DEBUG] Error:", error.message);
+        res.json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
 app.listen(PORT, () => {
     console.log(`🚀 Backend proxy berjalan di http://localhost:${PORT}`);
     console.log(`📊 Health check: http://localhost:${PORT}/health`);
     console.log(`🎬 Latest dramas: POST http://localhost:${PORT}/api/latest`);
     console.log(`🔍 Search: POST http://localhost:${PORT}/api/search`);
+    console.log(`🐛 Debug raw: POST http://localhost:${PORT}/api/debug-raw`);
     console.log(`📁 Sumber token: config.js`);
 });
 
